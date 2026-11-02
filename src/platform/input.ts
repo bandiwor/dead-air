@@ -28,7 +28,7 @@ export class Input {
   private readonly keys = new Set<string>();
   private mouse = { x: 0, y: 0, down: false, active: false };
   private held = { action: false };
-  private edges = { swap: false, throw: false, reload: false };
+  private edges = { swap: false, throw: false, reload: false, action: false };
   /** Позиция игрока на экране (для прицела мышью). */
   playerScreen = { x: 0, y: 0 };
   autofire = true;
@@ -51,6 +51,7 @@ export class Input {
       if (e.code === 'KeyQ') this.edges.swap = true;
       if (e.code === 'KeyG') this.edges.throw = true;
       if (e.code === 'KeyR') this.edges.reload = true;
+      if (e.code === 'KeyE' || e.code === 'Space') this.edges.action = true;
       if (e.code === 'Escape') this.onPause();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
@@ -77,7 +78,10 @@ export class Input {
       e.preventDefault();
       vibrate(8);
       el.classList.add('pressed');
-      if (id === 'action') this.held.action = true;
+      if (id === 'action') {
+        this.held.action = true;
+        this.edges.action = true;
+      }
       else if (id === 'pause') this.onPause();
       else this.edges[id] = true;
       try {
@@ -173,7 +177,7 @@ export class Input {
     this.aimEl.classList.remove('on');
     this.held.action = false;
     this.mouse.down = false;
-    this.edges = { swap: false, throw: false, reload: false };
+    this.edges = { swap: false, throw: false, reload: false, action: false };
   }
 
   /** Снимок ввода для одного тика; нажатия сбрасываются. */
@@ -223,7 +227,9 @@ export class Input {
         out.fire = this.mouse.down;
       }
     }
-    out.action = this.held.action || k.has('KeyE') || k.has('Space');
+    // короткий тап не теряется: «защёлка» держит действие хотя бы один тик
+    out.action = this.held.action || k.has('KeyE') || k.has('Space') || this.edges.action;
+    this.edges.action = false;
     out.swap = this.edges.swap;
     out.throw = this.edges.throw;
     out.reload = this.edges.reload;

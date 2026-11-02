@@ -14,7 +14,7 @@ interface QueueItem {
 
 interface Pending {
   at: number;
-  kind: ScareKind | 'jumpscareHit';
+  kind: ScareKind;
 }
 
 /**
@@ -33,7 +33,7 @@ export class Director {
   private readonly cooldownUntil = new Map<ScareKind, number>();
   private readonly uses = new Map<ScareKind, number>();
   private pending: Pending[] = [];
-  private jumpscareDone = false;
+  private jumpscares = 0;
   lastScareAt = -99;
 
   constructor(w: World) {
@@ -95,6 +95,7 @@ export class Director {
     for (const s of wave.spawns) this.queue.push({ kind: KIND_BY_ID[s.kind], from: s.from, left: s.count });
     this.pulseT = 1.5;
     w.emit('waveStart', 0, 0, 0, i + 1);
+    w.flags.add(`wave:${i + 1}:start`);
     if (wave.startLine) w.emit('line', 0, 0, 0, 0, 0, 0, wave.startLine);
   }
 
@@ -103,6 +104,7 @@ export class Director {
     const wave = this.wave;
     this.waveActive = false;
     w.emit('waveEnd', 0, 0, 0, this.waveIndex + 1);
+    w.flags.add(`wave:${this.waveIndex + 1}:end`);
     if (wave?.endLine) w.emit('line', 0, 0, 0, 0, 0, 0, wave.endLine);
     // награды: тайники у дверей тёмных домов, дальних от игрока — чтобы пришлось идти в темноту
     const spots = w.layout.doorSpots
@@ -122,7 +124,7 @@ export class Director {
     this.nextScareAt = Math.min(this.nextScareAt, w.time + 6);
   }
 
-  private dropPickup(kind: number, a: number, x: number, z: number): void {
+  dropPickup(kind: number, a: number, x: number, z: number): void {
     for (const pk of this.w.pickups) {
       if (pk.active) continue;
       pk.active = true;
@@ -200,7 +202,10 @@ export class Director {
     const w = this.w;
     if (w.time < s.minT || sanity > s.maxSanity || w.cfg.scare < s.minSetting) return false;
     if ((this.cooldownUntil.get(s.id) ?? -1) > w.time) return false;
-    if (s.id === 'jumpscare' && this.jumpscareDone) return false;
+    if (s.id === 'jumpscare' && this.jumpscares >= 2) return false;
+    // нельзя пугать посреди сценарной сцены и внутри домов (там свои скримеры)
+    if (s.id === 'jumpscare' && w.playerHouse >= 0) return false;
+    if (s.id === 'pier' && w.flags.has('pierFigure')) return false;
     if (s.id === 'speaker' && w.deadAir) return false;
     if (s.id === 'pier' && Math.hypot(w.player.x - WORLD.pier.x1, w.player.z - WORLD.pier.z0) < 12) return false;
     return true;
@@ -217,7 +222,7 @@ export class Director {
     this.execute(s.id);
   }
 
-  private execute(kind: ScareKind | 'jumpscareHit'): void {
+  private execute(kind: ScareKind): void {
     const w = this.w;
     const p = w.player;
     const rng = w.rng;
@@ -283,13 +288,8 @@ export class Director {
         break;
       }
       case 'jumpscare':
-        this.jumpscareDone = true;
-        w.emit('scare', p.x, 1.5, p.z, 0, 0, 0, 'jumpscare');
-        this.pending.push({ at: w.time + 0.05, kind: 'jumpscareHit' });
-        break;
-      case 'jumpscareHit':
-        p.sanity = Math.max(0, p.sanity - 14);
-        w.intensity = 1;
+        this.jumpscares++;
+        w.jumpscare();
         break;
     }
   }

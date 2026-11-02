@@ -108,6 +108,11 @@ export function damageEnemy(w: World, e: Enemy, dmg: number, kx: number, kz: num
 
 export function killEnemy(w: World, e: Enemy, explosive: boolean): void {
   e.active = false;
+  // В тишине умирающий шептун договаривает то, что не сказал. Радио это заглушает.
+  if (w.deadAir && e.kind === Kind.Whisperer && w.time - w.lastFragT > 3.5) {
+    w.addFragment(e.x, e.y + 0.6, e.z);
+    w.player.sanity = Math.max(0, w.player.sanity - 2);
+  }
   w.emit('kill', e.x, e.y, e.z, e.kind, explosive ? 1 : 0, e.yaw);
   w.player.sanity = Math.min(100, w.player.sanity + 0.6);
   w.intensity = Math.min(1, w.intensity + 0.04);

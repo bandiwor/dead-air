@@ -24,7 +24,11 @@ export class Screens {
   private readonly screens = new Map<ScreenId, HTMLElement>();
   private readonly loadingText: HTMLElement;
   private readonly loadingBar: HTMLElement;
-  private readonly rulesList: HTMLElement;
+  private readonly journal: HTMLElement;
+  private readonly dawnStats: HTMLElement;
+  private readonly noteModal: HTMLElement;
+  private readonly noteText: HTMLElement;
+  private onNoteClose: () => void = () => undefined;
   private settingsBack: ScreenId = 'title';
   private settings: Settings;
   private readonly h: ScreenHandlers;
@@ -83,10 +87,8 @@ export class Screens {
     this.button(pm, 'ui.resume', () => handlers.onResume());
     this.button(pm, 'ui.settings', () => this.openSettings('pause'));
     this.button(pm, 'ui.toTitle', () => handlers.onToTitle());
-    const rules = h('div', 'panel rules', undefined, pcol);
-    rules.dataset.scroll = '1';
-    h('div', 'panel-title', t('ui.rules'), rules);
-    this.rulesList = h('ol', 'rules-list', undefined, rules);
+    this.journal = h('div', 'panel rules journal', undefined, pcol);
+    this.journal.dataset.scroll = '1';
 
     const dead = this.screen('dead');
     h('div', 'logo red', t('death.title'), dead);
@@ -98,9 +100,20 @@ export class Screens {
     const dawn = this.screen('dawn');
     h('div', 'logo', t('dawn.title'), dawn);
     h('div', 'sub', t('dawn.sub'), dawn);
+    this.dawnStats = h('div', 'small', '', dawn);
     const dwm = h('div', 'menu', undefined, dawn);
     this.button(dwm, 'ui.retry', () => handlers.onRetry());
     this.button(dwm, 'ui.toTitle', () => handlers.onToTitle());
+
+    // записка: игра стоит, пока её читают
+    this.noteModal = h('div', 'note-modal hidden', undefined, parent);
+    const paper = h('div', 'note-paper', undefined, this.noteModal);
+    paper.dataset.scroll = '1';
+    this.noteText = h('div', 'note-text', '', paper);
+    this.button(paper, 'ui.close', () => {
+      show(this.noteModal, false);
+      this.onNoteClose();
+    });
 
     // окно «доступно обновление» — поверх меню, не поверх игры
     this.updateModal = h('div', 'update-modal hidden', undefined, parent);
@@ -150,9 +163,32 @@ export class Screens {
     this.loadingBar.style.transform = `scaleX(${frac.toFixed(3)})`;
   }
 
-  setRules(keys: readonly StrKey[]): void {
-    this.rulesList.textContent = '';
-    for (const k of keys) h('li', '', t(k), this.rulesList);
+  showNote(text: string, onClose: () => void): void {
+    this.noteText.textContent = text;
+    this.onNoteClose = onClose;
+    show(this.noteModal, true);
+  }
+
+  setDawnStats(text: string): void {
+    this.dawnStats.textContent = text;
+  }
+
+  /** Журнал в паузе: Наказ (нарушенные зачёркнуты), прочитанное, услышанное в тишине. */
+  setJournal(rules: readonly { key: StrKey; broken: boolean }[], notes: readonly StrKey[], heard: readonly StrKey[]): void {
+    const j = this.journal;
+    j.textContent = '';
+    h('div', 'panel-title', t('ui.rules'), j);
+    const ol = h('ol', 'rules-list', undefined, j);
+    for (const r of rules) {
+      const li = h('li', r.broken ? 'broken' : '', t(r.key), ol);
+      if (r.broken) li.dataset.tag = t('ui.broken');
+    }
+    h('h4', '', t('ui.notes'), j);
+    if (notes.length === 0) h('div', 'small', t('ui.nothing'), j);
+    for (const n of notes) h('p', 'jnote', t(n), j);
+    h('h4', '', `${t('ui.heard')} · ${heard.length}/10`, j);
+    if (heard.length === 0) h('div', 'small', t('ui.nothing'), j);
+    for (const f of heard) h('div', 'frag', t(f), j);
   }
 
   private openSettings(back: ScreenId): void {

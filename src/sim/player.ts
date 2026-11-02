@@ -5,6 +5,7 @@ import { Kind } from '../content/enemies';
 import { TRAIL_SIZE, type World } from './world';
 import type { InputFrame } from './types';
 import { fireWeapon, throwDynamite } from './combat';
+import { updateInteract } from './interact';
 
 export const PLAYER_R = 0.38;
 const SPEED = 4.7;
@@ -40,6 +41,7 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   } else {
     p.reel = Math.max(0, p.reel - dt * 2);
   }
+  updateInteract(w, inp, dt);
 
   // --- движение ---
   let mx = inp.mx;
@@ -49,7 +51,7 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
     mx /= ml;
     mz /= ml;
   }
-  const moving = ml > 0.12 && !p.holdingReel;
+  const moving = ml > 0.12 && !p.holdingReel && !p.holding;
   const speed = SPEED * (inp.aiming ? 0.82 : 1) * (moving ? 1 : 0);
   p.vx = damp(p.vx, mx * speed, 14, dt);
   p.vz = damp(p.vz, mz * speed, 14, dt);
@@ -87,6 +89,7 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   p.x = pos.x;
   p.z = pos.z;
   p.y = groundAt(p.x, p.z);
+  w.updatePlayerHouse();
   const travelled = Math.hypot(p.x - ox, p.z - oz);
   p.moving = travelled > 0.2 * dt;
   p.stillT = p.moving ? 0 : p.stillT + dt;
@@ -150,7 +153,7 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
     }
   };
   if (inp.reload) startReload();
-  if (inp.fire && !p.holdingReel && p.cooldown <= 0 && p.reload <= 0) {
+  if (inp.fire && !p.holdingReel && !p.holding && p.cooldown <= 0 && p.reload <= 0) {
     if (p.mag[p.weapon]! > 0) {
       fireWeapon(w);
     } else if (p.reserve[p.weapon]! > 0) {
@@ -172,6 +175,7 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
       for (let i = 0; i < WEAPONS.length; i++) if (p.owned[i]) p.reserve[i]! += WEAPONS[i]!.crate;
     } else if (pk.kind === 1) {
       p.owned[pk.a] = true;
+      w.flags.add(`got:${WEAPONS[pk.a]!.id}`);
       p.reserve[pk.a]! += WEAPONS[pk.a]!.crate;
       p.weapon = pk.a;
       p.reload = 0;

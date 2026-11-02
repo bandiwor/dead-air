@@ -46,6 +46,8 @@ export class ActorsView {
   private readonly longCrates: THREE.InstancedMesh;
   private readonly dynamite: THREE.InstancedMesh;
   readonly face: THREE.Mesh;
+  /** Янтарные искры у того, что стоит осмотреть. */
+  private readonly glints: THREE.InstancedMesh;
   private readonly phases = new Map<number, number>();
   private playerPhase = 0;
   private time = 0;
@@ -88,6 +90,11 @@ export class ActorsView {
     }
 
     // лицо светится собственным бледным светом — оно должно читаться даже в полной темноте
+    this.glints = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.07, 0), new THREE.MeshBasicMaterial({ color: 0xffc070 }), 16);
+    this.glints.count = 0;
+    this.glints.frustumCulled = false;
+    this.root.add(this.glints);
+
     const faceMat = new THREE.MeshBasicMaterial({ vertexColors: true, map: tex.skin, fog: false });
     faceMat.color.setScalar(1.15);
     this.face = new THREE.Mesh(faceGeometry(), faceMat);
@@ -143,7 +150,8 @@ export class ActorsView {
       } else if (e.kind === Kind.Apparition) {
         amp = 0;
         fade = Math.min(1, e.t * 0.6) * 0.95;
-        rim = 0.25;
+        // фигура на пристани должна читаться силуэтом — «кайма» ярче
+        rim = e.state === 1 || e.state === 3 ? 0.8 : e.state === 2 ? 0.5 : 0.25;
         glitch = e.litTorch ? 0.6 : 0.02;
       }
       ph += sp * dt * stride;
@@ -170,6 +178,18 @@ export class ActorsView {
     this.longCrates.count = nl;
     this.crates.instanceMatrix.needsUpdate = true;
     this.longCrates.instanceMatrix.needsUpdate = true;
+
+    // непрочитанные записки в открытых домах
+    let ng = 0;
+    for (const it of w.interactables) {
+      if (it.kind !== 'note' || !it.enabled || w.notesRead.includes(it.id)) continue;
+      if (!w.doorOpen[it.house]) continue;
+      const pulse = 0.8 + Math.sin(this.time * 4 + it.x) * 0.35;
+      m4.compose(v.set(it.x, heightAt(it.x, it.z) + 1.0 + Math.sin(this.time * 2) * 0.05, it.z), q.setFromAxisAngle(UP, this.time * 1.5), sc.set(pulse, pulse * 1.4, pulse));
+      if (ng < 16) this.glints.setMatrixAt(ng++, m4);
+    }
+    this.glints.count = ng;
+    this.glints.instanceMatrix.needsUpdate = true;
 
     // шашки в полёте
     let nd = 0;

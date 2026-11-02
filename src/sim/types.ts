@@ -27,7 +27,7 @@ export type EvType =
   | 'shot' | 'tracer' | 'hit' | 'kill' | 'explosion' | 'step' | 'echoStep' | 'playerHurt' | 'playerDeath'
   | 'reload' | 'dryfire' | 'swap' | 'pickup' | 'throw' | 'flareLand' | 'deadAir' | 'airRestored'
   | 'reelProgress' | 'line' | 'scare' | 'waveStart' | 'waveEnd' | 'dawn' | 'alert' | 'growl' | 'charge'
-  | 'vanish' | 'bounce' | 'spawn' | 'splash';
+  | 'vanish' | 'bounce' | 'spawn' | 'splash' | 'note' | 'knock' | 'door' | 'houseLight' | 'fragment';
 
 export interface SimEvent {
   type: EvType;
@@ -149,4 +149,25 @@ export interface Player {
   inLight: boolean;
   lastNoiseT: number;
   canReel: boolean;
+  /** Индекс интерактива в фокусе (или −1) и прогресс удержания. */
+  focus: number;
+  focusHold: number;
+  actionPrev: boolean;
+  holding: boolean;
+}
+
+export type InteractKind = 'knock' | 'note' | 'pier' | 'switch';
+
+export class Interactable {
+  id = '';
+  kind: InteractKind = 'note';
+  x = 0;
+  z = 0;
+  r = 1.2;
+  house = -1;
+  key = '';
+  enabled = true;
+  used = false;
+  /** 0 — нажатие, иначе — секунды удержания. */
+  hold = 0;
 }

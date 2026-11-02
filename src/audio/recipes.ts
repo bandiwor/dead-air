@@ -630,4 +630,80 @@ export const RECIPES: Record<ProcSoundId, Recipe> = {
       perc(n.gain, 0, 0.3, 0.001, 0.04);
     },
   },
+  knock: {
+    // три удара костяшками в бревенчатую дверь: глухой удар + резонанс доски
+    dur: () => 1.2,
+    build: (c, o, r) => {
+      for (const t of [0, r.range(0.26, 0.3), r.range(0.54, 0.6)]) {
+        const th = gain(c);
+        const s = osc(c, 'sine', r.range(110, 130), t, 0.12);
+        sweep(s.frequency, t, 130, 80, 0.06);
+        chain(s, th, o);
+        perc(th.gain, t, 0.9, 0.002, 0.09);
+        const wd = gain(c);
+        chain(noise(c, r, 0.1), filter(c, 'bandpass', r.range(650, 850), 5), wd, o);
+        perc(wd.gain, t, 0.7, 0.001, 0.07);
+        const res = gain(c);
+        chain(noise(c, r, 0.2), filter(c, 'bandpass', 210, 16), res, o);
+        perc(res.gain, t, 2.2, 0.002, 0.16);
+      }
+    },
+  },
+  creak: {
+    // медленный скрип петель: «смычок» по пиле через узкие резонансы
+    dur: () => 2.2,
+    build: (c, o, r) => {
+      const g = gain(c, 0.0001);
+      const so = osc(c, 'sawtooth', r.range(90, 120), 0, 2.1);
+      let t = 0;
+      while (t < 2) {
+        so.frequency.linearRampToValueAtTime(r.range(70, 160), t + 0.15);
+        t += r.range(0.08, 0.2);
+      }
+      const am = gain(c, 0.5);
+      chain(noise(c, r, 2.1), filter(c, 'lowpass', 35), am);
+      am.connect(g.gain);
+      chain(so, filter(c, 'bandpass', r.range(700, 1100), 9), filter(c, 'peaking', 1800, 4, 6), g, o);
+      ahr(g.gain, 0.05, 0.35, 0.3, 1.0, 0.6);
+    },
+  },
+  slam: {
+    dur: () => 1.8,
+    build: (c, o, r) => {
+      const sum = gain(c, 1);
+      chain(sum, saturator(c, 3), o);
+      const th = gain(c);
+      const s = osc(c, 'sine', 95, 0, 0.4);
+      sweep(s.frequency, 0, 95, 38, 0.3);
+      chain(s, th, sum);
+      perc(th.gain, 0, 1.2, 0.002, 0.35);
+      const wd = gain(c);
+      chain(noise(c, r, 0.4), filter(c, 'lowpass', 1800), wd, sum);
+      perc(wd.gain, 0, 1, 0.001, 0.25);
+      for (let i = 0; i < 6; i++) {
+        // дребезг стекла и петель
+        const t = 0.05 + i * r.range(0.04, 0.09);
+        const k = gain(c);
+        chain(noise(c, r, 0.03), filter(c, 'bandpass', r.range(2500, 5000), 8), k, o);
+        perc(k.gain, t, 0.3 * (1 - i / 6), 0.0005, 0.03);
+      }
+    },
+  },
+  scratch: {
+    // ногти по брёвнам: рваный высокочастотный шум с «зацепами»
+    dur: (r) => r.range(0.7, 1.2),
+    build: (c, o, r, d) => {
+      const g = gain(c, 0.0001);
+      const bp = filter(c, 'bandpass', r.range(2500, 3800), 3);
+      chain(noise(c, r, d), bp, g, o);
+      let t = 0;
+      while (t < d - 0.05) {
+        g.gain.setTargetAtTime(r.range(0.2, 0.9), t, 0.005);
+        g.gain.setTargetAtTime(0.02, t + r.range(0.02, 0.06), 0.01);
+        bp.frequency.setTargetAtTime(r.range(2000, 4500), t, 0.02);
+        t += r.range(0.03, 0.09);
+      }
+      g.gain.setTargetAtTime(0.0001, d - 0.05, 0.01);
+    },
+  },
 };

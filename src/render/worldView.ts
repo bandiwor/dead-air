@@ -6,8 +6,9 @@ import type { Layout } from '../proc/layout';
 import { fbm } from '../proc/noise';
 import type { TextureSet } from './textures';
 import { triplanar } from './materials';
+import { INTERIORS } from '../content/interiors';
 import {
-  barrelGeometry, birchGeometry, deadTreeGeometry, fenceGeometry, grassGeometry, houseGeometry,
+  barrelGeometry, birchGeometry, deadTreeGeometry, doorGeometry, fenceGeometry, furnitureGeometry, grassGeometry, houseGeometry, switchGeometry,
   pierGeometry, poleGeometry, rockGeometry, spruceGeometry, wellGeometry,
 } from './models';
 
@@ -27,6 +28,11 @@ export interface WorldView {
   poleLamp: THREE.Mesh;
   poleLight: THREE.PointLight;
   hutLight: THREE.PointLight;
+  /** По дому: крыша (скрывается изнутри), петля двери, высота пола. */
+  roofs: THREE.Mesh[];
+  doors: THREE.Object3D[];
+  interiorLight: THREE.PointLight;
+  houseY: number[];
 }
 
 const PATHS: [number, number, number, number][] = [
@@ -178,7 +184,6 @@ export function buildWorldView(layout: Layout, tex: TextureSet, quality: number)
 
   // ----- дома: всё сливается по материалам
   const wallParts: THREE.BufferGeometry[] = [];
-  const roofParts: THREE.BufferGeometry[] = [];
   const trimParts: THREE.BufferGeometry[] = [];
   const windowMats: THREE.MeshBasicMaterial[] = [];
   const place = (g: THREE.BufferGeometry, x: number, z: number, rot: number, y: number): THREE.BufferGeometry => {
@@ -186,21 +191,70 @@ export function buildWorldView(layout: Layout, tex: TextureSet, quality: number)
     return g;
   };
   const allHouses = [...layout.houses, layout.hut];
+  const roofMat = triplanar(new THREE.MeshLambertMaterial({ map: tex.roof, vertexColors: true }), { scale: 0.5, occluderFade: true });
+  roofMat.color.setScalar(1.6);
+  const plankMat = triplanar(new THREE.MeshLambertMaterial({ map: tex.planks, vertexColors: true }), { scale: 0.9, occluderFade: true });
+  plankMat.color.setScalar(1.7);
+  const furnMat = triplanar(new THREE.MeshLambertMaterial({ map: tex.planks, vertexColors: true }), { scale: 1.1 });
+  furnMat.color.setScalar(1.7);
+  const roofs: THREE.Mesh[] = [];
+  const doors: THREE.Object3D[] = [];
+  const furnParts: THREE.BufferGeometry[] = [];
+  const houseY: number[] = [];
   for (const h of allHouses) {
-    const y = Math.min(heightAt(h.x, h.z), heightAt(h.x + 1, h.z + 1)) ;
+    const y = heightAt(h.x, h.z) + 0.04;
     const isHut = h === layout.hut;
-    const parts = houseGeometry(h.w, h.d, h.h, 100 + h.id, isHut);
+    const parts = houseGeometry(h.w, h.d, h.h, 100 + h.id, isHut, !isHut);
     wallParts.push(place(parts.walls, h.x, h.z, h.rot, y));
-    roofParts.push(place(parts.roof, h.x, h.z, h.rot, y));
     trimParts.push(place(parts.trim, h.x, h.z, h.rot, y));
+    // крыша у каждого дома своя — её снимают, когда игрок внутри
+    const roof = new THREE.Mesh(place(parts.roof, h.x, h.z, h.rot, y), roofMat);
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    root.add(roof);
     const wm = new THREE.MeshBasicMaterial({ color: h.lit ? COLORS.windowLit : COLORS.windowDark, fog: true });
-    windowMats.push(wm);
     const wmesh = new THREE.Mesh(place(parts.windows, h.x, h.z, h.rot, y), wm);
     root.add(wmesh);
+    if (isHut) continue;
+    roofs.push(roof);
+    windowMats.push(wm);
+    houseY.push(y);
+    // дверь на петле: группа в проёме, полотно поворачивается внутрь
+    const hinge = new THREE.Group();
+    const door = new THREE.Mesh(doorGeometry(), plankMat);
+    door.castShadow = true;
+    hinge.add(door);
+    const c = Math.cos(h.rot);
+    const sn = Math.sin(h.rot);
+    const lx = -0.62;
+    const lz = h.d / 2 - 0.09;
+    const holder = new THREE.Group();
+    holder.position.set(h.x + lx * c + lz * sn, y, h.z - lx * sn + lz * c);
+    holder.rotation.y = h.rot;
+    holder.add(hinge);
+    root.add(holder);
+    doors.push(hinge);
+    const it = INTERIORS.find((i) => i.house === h.id);
+    if (it) furnParts.push(place(furnitureGeometry(it.furniture, h.w, h.d, 500 + h.id), h.x, h.z, h.rot, y));
+  }
+  const furniture = new THREE.Mesh(mergeAll(furnParts), furnMat);
+  furniture.castShadow = true;
+  furniture.receiveShadow = true;
+  root.add(furniture);
+  // свет внутри дома, где игрок (одна лампа на всех — число источников постоянно)
+  const interiorLight = new THREE.PointLight(0xffb060, 0, 7, 1.5);
+  root.add(interiorLight);
+  // рубильник на стене радиоузла
+  {
+    const hut = layout.hut;
+    const sw = new THREE.Mesh(switchGeometry(), plankMat);
+    const lx = -hut.w / 2 - 0.06;
+    sw.position.set(hut.x + lx * Math.cos(hut.rot), heightAt(hut.x, hut.z), hut.z - lx * Math.sin(hut.rot));
+    sw.rotation.y = hut.rot - Math.PI / 2;
+    root.add(sw);
   }
   const mergedMesh = (parts: THREE.BufferGeometry[], mat: THREE.Material): THREE.Mesh => {
-    const g = mergeAll(parts);
-    const m = new THREE.Mesh(g, mat);
+    const m = new THREE.Mesh(mergeAll(parts), mat);
     m.castShadow = true;
     m.receiveShadow = true;
     root.add(m);
@@ -209,11 +263,6 @@ export function buildWorldView(layout: Layout, tex: TextureSet, quality: number)
   const logsMat = triplanar(new THREE.MeshLambertMaterial({ map: tex.logs, vertexColors: true }), { scale: 0.7, occluderFade: true });
   logsMat.color.setScalar(1.6);
   mergedMesh(wallParts, logsMat);
-  const roofMat = triplanar(new THREE.MeshLambertMaterial({ map: tex.roof, vertexColors: true }), { scale: 0.5, occluderFade: true });
-  roofMat.color.setScalar(1.6);
-  mergedMesh(roofParts, roofMat);
-  const plankMat = triplanar(new THREE.MeshLambertMaterial({ map: tex.planks, vertexColors: true }), { scale: 0.9, occluderFade: true });
-  plankMat.color.setScalar(1.7);
   mergedMesh(trimParts, plankMat);
 
   // ----- столб с громкоговорителем
@@ -281,7 +330,7 @@ export function buildWorldView(layout: Layout, tex: TextureSet, quality: number)
   barrels.castShadow = true;
   root.add(barrels);
 
-  return { root, windowMats, barrels, water, poleLamp, poleLight, hutLight };
+  return { root, windowMats, barrels, water, poleLamp, poleLight, hutLight, roofs, doors, interiorLight, houseY };
 }
 
 function mergeAll(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {

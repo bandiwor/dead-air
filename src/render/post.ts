@@ -50,16 +50,16 @@ void main() {
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
   // раздельное тонирование: тени — в сине-чёрный, света — в натриевый янтарь
   col *= mix(vec3(0.62, 0.78, 1.0), vec3(1.07, 0.98, 0.84), smoothstep(0.015, 0.45, l));
-  col = mix(col, vec3(l), uSanity * 0.6 + uDeadAir * 0.15);
+  col = mix(col, vec3(l), uSanity * 0.45 + uDeadAir * 0.12);
   col = mix(col, vec3(l * 1.3, l * 0.12, l * 0.1), uHurt * 0.55);
   col += uFlash * vec3(1.0, 0.93, 0.82);
 
   vec2 q = vUv - 0.5;
-  float vig = 1.0 - dot(q, q) * (1.15 + uSanity * 1.8 + uHurt * 1.2);
+  float vig = 1.0 - dot(q, q) * (1.15 + uSanity * 1.0 + uHurt * 1.2);
   col *= clamp(vig, 0.0, 1.0);
 
   col = toSRGB(clamp(col, 0.0, 1.0));
-  col += (hash(vUv * uRes + fract(uTime) * 91.7) - 0.5) * (0.045 + uSanity * 0.07);
+  col += (hash(vUv * uRes + fract(uTime) * 91.7) - 0.5) * (0.045 + uSanity * 0.045);
   // квантование с упорядоченным дизерингом
   float d = bayer4(gl_FragCoord.xy) - 0.5;
   col = floor(col * uLevels + 0.5 + d) / uLevels;

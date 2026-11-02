@@ -34,7 +34,7 @@ export type ProcSoundId =
   | 'explosion' | 'fuse' | 'stepGrass' | 'stepWood' | 'stepDirt' | 'stepMud'
   | 'whisper' | 'screech' | 'growl' | 'roar' | 'hit' | 'gore' | 'death' | 'hurt'
   | 'heartbeat' | 'sting' | 'swell' | 'branch' | 'reel' | 'pickup' | 'ui' | 'static'
-  | 'speakerVoice' | 'cricket' | 'frog' | 'splash' | 'bounce';
+  | 'speakerVoice' | 'cricket' | 'frog' | 'splash' | 'bounce' | 'knock' | 'creak' | 'slam' | 'scratch';
 
 export type SoundSource =
   | { proc: ProcSoundId; variations?: number }
@@ -76,5 +76,9 @@ export const SOUNDS = {
   frog: { proc: 'frog', variations: 2 },
   splash: { proc: 'splash', variations: 2 },
   bounce: { proc: 'bounce' },
+  knock: { proc: 'knock', variations: 2 },
+  creak: { proc: 'creak', variations: 2 },
+  slam: { proc: 'slam' },
+  scratch: { proc: 'scratch', variations: 4 },
 } satisfies Record<string, SoundSource>;
 export type SoundId = keyof typeof SOUNDS;

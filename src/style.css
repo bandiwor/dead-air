@@ -331,3 +331,30 @@ button {
 .update-modal .panel { border-color: var(--sodium); max-width: min(460px, 88vw); }
 .menu.row { grid-auto-flow: column; min-width: 0; }
 .version { text-align: right; margin-top: 4px; }
+
+.hud-objective {
+  position: absolute;
+  left: 50%;
+  top: calc(10px + var(--safe-t));
+  transform: translateX(-50%);
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  max-width: 46vw;
+  text-align: center;
+}
+.marker.goal { color: var(--phos); }
+.hud-prompt.rule { color: var(--phos); }
+.hud-prompt.rule .bar-fill { background: var(--phos); }
+.subs.style-3 { color: var(--phos); font-style: italic; letter-spacing: 0.16em; background: rgba(5, 8, 11, 0.75); text-shadow: 0 0 6px rgba(127, 214, 194, 0.6); }
+
+/* записка */
+.note-modal { position: absolute; inset: 0; display: grid; place-content: center; background: rgba(5, 8, 11, 0.78); z-index: 4; padding: 16px; }
+.note-paper { border: 1px solid var(--sodium); background: rgba(14, 12, 9, 0.95); max-width: min(560px, 90vw); max-height: 80vh; overflow-y: auto; padding: 16px 20px; display: grid; gap: 14px; touch-action: pan-y; }
+.note-text { white-space: pre-line; font-size: 13.5px; line-height: 1.65; color: #d8cfb8; }
+.journal { max-width: 420px; }
+.journal h4 { color: var(--sodium); font-weight: normal; font-size: 12px; letter-spacing: 0.2em; margin-top: 6px; }
+.journal li.broken { color: var(--phos); text-decoration: line-through; }
+.journal li.broken::after { content: ' — ' attr(data-tag); text-decoration: none; display: inline-block; margin-left: 4px; color: var(--phos); }
+.journal .frag { color: var(--phos); font-style: italic; }
+.journal .jnote { color: #c8bfa8; font-size: 11.5px; }

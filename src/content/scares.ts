@@ -31,5 +31,5 @@ export const SCARES: readonly ScareDef[] = [
   { id: 'edge', weight: 2, cooldown: 45, fatigue: 0.45, minT: 110, maxSanity: 85, lull: 1.3, minSetting: 0.15, falseAlarm: true },
   { id: 'speaker', weight: 1.4, cooldown: 85, fatigue: 0.4, minT: 95, maxSanity: 100, lull: 1.6, minSetting: 0, falseAlarm: true },
   { id: 'fake', weight: 2.5, cooldown: 18, fatigue: 0.15, minT: 60, maxSanity: 45, lull: 0.9, minSetting: 0.1, falseAlarm: true },
-  { id: 'jumpscare', weight: 1.2, cooldown: 160, fatigue: 2, minT: 170, maxSanity: 60, lull: 1.5, minSetting: 0.3, falseAlarm: false },
+  { id: 'jumpscare', weight: 2, cooldown: 140, fatigue: 1, minT: 120, maxSanity: 75, lull: 1.6, minSetting: 0.25, falseAlarm: false },
 ];

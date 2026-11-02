@@ -23,6 +23,7 @@ export interface EventCtx {
   reduceFlashes: boolean;
   onDeath: () => void;
   onDawn: () => void;
+  onNote: (key: string) => void;
 }
 
 /** Окна: временные «мигания» света в домах (сцена «В доме зажгли свет»). */
@@ -37,19 +38,17 @@ export function handleEvents(w: World, c: EventCtx, dt: number): void {
   for (let i = 0; i < w.eventCount; i++) handle(w.events[i]!, w, c);
   w.clearEvents();
 
-  // мигающие окна
-  for (const [idx, left] of windowFlicker) {
-    const nl = left - dt;
-    const mat = c.r.view.windowMats[idx];
-    if (!mat) continue;
-    if (nl <= 0) {
-      windowFlicker.delete(idx);
-      mat.color.setHex(COLORS.windowLit);
-    } else {
-      windowFlicker.set(idx, nl);
+  // окна: свет по состоянию дома; «мигание» поверх
+  c.r.view.windowMats.forEach((mat, idx) => {
+    const left = windowFlicker.get(idx);
+    if (left !== undefined) {
+      if (left - dt <= 0) windowFlicker.delete(idx);
+      else windowFlicker.set(idx, left - dt);
       mat.color.setHex(Math.random() < 0.5 ? COLORS.windowLit : COLORS.windowDark);
+    } else {
+      mat.color.setHex(w.houseLight[idx] ? COLORS.windowLit : COLORS.windowDark);
     }
-  }
+  });
 
   // непрерывные эффекты
   c.r.hurt = Math.max(0, c.r.hurt - dt * 1.4);
@@ -60,7 +59,8 @@ export function handleEvents(w: World, c: EventCtx, dt: number): void {
     if (!e.active) continue;
     const d = Math.hypot(e.x - p.x, e.z - p.z);
     if (e.kind !== Kind.Apparition) near = Math.min(near, d);
-    if (e.kind === Kind.Echo || e.kind === Kind.Apparition) eerie = Math.max(eerie, 1 - d / 12);
+    // помехи рядом с «неправильным»; фигура на пристани — тише, её нужно успеть рассмотреть
+    if (e.kind === Kind.Echo || e.kind === Kind.Apparition) eerie = Math.max(eerie, (1 - d / 12) * (e.state === 1 ? 0.35 : 1));
   }
   const target = Math.max(0, eerie * 0.55, (0.35 - p.sanity / 100) * 0.9, w.deadAir ? 0.12 : 0);
   c.r.glitch = Math.max(target, c.r.glitch - dt * 1.8);
@@ -209,6 +209,29 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
       break;
     case 'reelProgress':
       break;
+    case 'note':
+      audio.play('swap', { vol: 0.5, rate: 0.8 });
+      c.onNote(e.s);
+      break;
+    case 'knock':
+      audio.play('knock', { x: e.x, z: e.z, vol: 1, reverb: 0.3 });
+      vibrate([15, 250, 15, 250, 15]);
+      break;
+    case 'door':
+      if (e.b > 0) audio.play('creak', { x: e.x, z: e.z, vol: 1, reverb: 0.3 });
+      else {
+        audio.play('slam', { x: e.x, z: e.z, vol: 1.3, reverb: 0.4 });
+        r.addTrauma(0.45);
+        vibrate(90);
+      }
+      break;
+    case 'fragment':
+      audio.play('whisper', { x: e.x, z: e.z, vol: 1, reverb: 0.5, rate: 0.9 });
+      r.glitch = Math.max(r.glitch, 0.5);
+      break;
+    case 'houseLight':
+      audio.play('dryfire', { vol: 0.3, rate: 0.6 });
+      break;
   }
 }
 
@@ -243,12 +266,38 @@ function scare(e: SimEvent, w: World, c: EventCtx): void {
     case 'speaker':
       audio.play('speakerVoice', { x: e.x, z: e.z, vol: 1.1, bus: 'music', reverb: 0.5, rate: 0.85 });
       break;
+    case 'names':
+      // громкоговоритель перечисляет дворы
+      for (let i = 0; i < 4; i++) audio.play('speakerVoice', { x: e.x, z: e.z, vol: 1.1, bus: 'music', reverb: 0.5, rate: 0.8, delay: i * 3 });
+      audio.play('static', { x: e.x, z: e.z, vol: 0.8, bus: 'music', delay: 11.5 });
+      break;
+    case 'knockBack':
+      // из-за двери отвечают тем же ритмом, только медленнее
+      audio.play('knock', { x: e.x, z: e.z, vol: 1.1, rate: 0.72, reverb: 0.5 });
+      vibrate([20, 340, 20, 340, 20]);
+      break;
+    case 'scratch': {
+      const h = e.a >= 0 ? w.layout.houses[e.a] : undefined;
+      const cx = h?.x ?? e.x;
+      const cz = h?.z ?? e.z;
+      for (let i = 0; i < 12; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const rr = 2.6 + Math.random() * 0.6;
+        audio.play(i % 4 === 3 ? 'knock' : 'scratch', { x: cx + Math.cos(a) * rr, z: cz + Math.sin(a) * rr, vol: 0.9, delay: i * 0.28 + Math.random() * 0.15, rate: 0.8 + Math.random() * 0.4 });
+      }
+      for (let i = 0; i < 3; i++) audio.play('whisper', { x: cx + (Math.random() - 0.5) * 6, z: cz + (Math.random() - 0.5) * 6, vol: 0.8, delay: 0.6 + i * 0.9 });
+      vibrate([30, 60, 30, 60, 30, 200, 60]);
+      r.glitch = Math.max(r.glitch, 0.4);
+      break;
+    }
     case 'jumpscare':
-      r.showFace(0.42);
+      r.showFace();
       r.glitch = 1;
       r.flashFx = c.reduceFlashes ? 0.1 : 0.45;
       audio.play('sting', { vol: 0.35 + 0.55 * c.scare, reverb: 0.2 });
-      vibrate([120, 30, 60]);
+      // второй удар — когда игрок уже выдохнул
+      audio.play('screech', { vol: 0.5 + 0.5 * c.scare, delay: 0.78, rate: 0.8 });
+      vibrate([140, 40, 60, 300, 120]);
       break;
   }
 }

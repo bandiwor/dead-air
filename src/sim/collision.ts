@@ -1,5 +1,7 @@
 import type { HouseDef, Layout } from '../proc/layout';
 import { WORLD } from '../proc/terrain';
+import { INTERIORS } from '../content/interiors';
+import { DOOR_HALF, WALL, toWorld } from './houses';
 
 export interface Box {
   cx: number;
@@ -18,6 +20,31 @@ function boxOf(h: HouseDef, pad = 0): Box {
   return { cx: h.x, cz: h.z, hw: h.w / 2 + pad, hd: h.d / 2 + pad, c: Math.cos(h.rot), s: Math.sin(h.rot) };
 }
 
+/** Прямоугольник в локальных координатах дома → OBB в мире. */
+function localBox(h: HouseDef, lx: number, lz: number, hw: number, hd: number): Box {
+  const [cx, cz] = toWorld(h, lx, lz);
+  return { cx, cz, hw, hd, c: Math.cos(h.rot), s: Math.sin(h.rot) };
+}
+
+/** Полый сруб: четыре стены, в передней — дверной проём. */
+export function houseWalls(h: HouseDef): Box[] {
+  const hw = h.w / 2;
+  const hd = h.d / 2;
+  const t = WALL / 2;
+  const side = (hw - DOOR_HALF) / 2;
+  return [
+    localBox(h, 0, -hd + t, hw, t),
+    localBox(h, -hw + t, 0, t, hd),
+    localBox(h, hw - t, 0, t, hd),
+    localBox(h, -(DOOR_HALF + side), hd - t, side, t),
+    localBox(h, DOOR_HALF + side, hd - t, side, t),
+  ];
+}
+
+export function doorBox(h: HouseDef): Box {
+  return localBox(h, 0, h.d / 2 - WALL / 2, DOOR_HALF, WALL / 2);
+}
+
 /**
  * Статическая геометрия мира для коллизий и лучей. Деревья — круги в равномерной сетке, дома — OBB.
  * Никаких аллокаций в запросах.
@@ -29,6 +56,9 @@ export class Statics {
   readonly cells: Int32Array[];
   readonly boxes: Box[];
   readonly poles: { x: number; z: number; r: number }[];
+  /** Двери домов: закрытая дверь — препятствие. */
+  readonly doors: Box[];
+  readonly doorOpen: boolean[];
 
   constructor(layout: Layout) {
     const n = layout.trees.length;
@@ -45,8 +75,19 @@ export class Statics {
       if (cx >= 0 && cz >= 0 && cx < N && cz < N) buckets[cz * N + cx]!.push(i);
     });
     this.cells = buckets.map((b) => Int32Array.from(b));
-    this.boxes = [...layout.houses.map((h) => boxOf(h)), boxOf(layout.hut)];
+    this.boxes = [...layout.houses.flatMap((h) => houseWalls(h)), boxOf(layout.hut)];
+    this.doors = layout.houses.map((h) => doorBox(h));
+    this.doorOpen = layout.houses.map(() => false);
     this.poles = [{ x: layout.pole.x, z: layout.pole.z, r: 0.3 }];
+    for (const it of INTERIORS) {
+      const h = layout.houses[it.house];
+      if (!h) continue;
+      for (const f of it.furniture) {
+        if (!f.r) continue;
+        const [x, z] = toWorld(h, f.x, f.z);
+        this.poles.push({ x, z, r: f.r });
+      }
+    }
   }
 
   /** Выталкивает круг из статики. Возвращает true, если было столкновение. */
@@ -69,6 +110,7 @@ export class Statics {
     }
     for (const p of this.poles) hit = pushCircle(pos, r, p.x, p.z, p.r) || hit;
     for (const b of this.boxes) hit = pushBox(pos, r, b) || hit;
+    for (let i = 0; i < this.doors.length; i++) if (!this.doorOpen[i]) hit = pushBox(pos, r, this.doors[i]!) || hit;
     const d = Math.hypot(pos.x, pos.z);
     if (d > WORLD.bounds) {
       pos.x *= WORLD.bounds / d;
@@ -83,6 +125,11 @@ export class Statics {
     let best = maxT;
     for (const b of this.boxes) {
       const t = rayBox(ox, oz, dx, dz, b);
+      if (t >= 0 && t < best) best = t;
+    }
+    for (let i = 0; i < this.doors.length; i++) {
+      if (this.doorOpen[i]) continue;
+      const t = rayBox(ox, oz, dx, dz, this.doors[i]!);
       if (t >= 0 && t < best) best = t;
     }
     if (trees) {

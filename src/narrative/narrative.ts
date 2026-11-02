@@ -1,9 +1,16 @@
-import type { BeatDef } from '../content/night1';
+import type { Beat, Condition, Effect, SpawnAt } from '../content/script';
+import { interiorOf } from '../content/interiors';
+import { KIND_BY_ID, Kind } from '../content/enemies';
+import { weaponIndex } from '../content/weapons';
+import { WORLD, isWater } from '../proc/terrain';
+import { doorOf } from '../proc/layout';
+import { spawnEnemy } from '../sim/enemies';
+import { toWorld } from '../sim/houses';
 import type { World } from '../sim/world';
 
 /**
- * Нарративный движок: декларативные биты (условие → реплики). Никакого исполняемого кода в контенте.
- * Реплики идут очередью, чтобы не налезать друг на друга.
+ * Сценарный движок: проверяет условия битов и исполняет эффекты из белого списка.
+ * `wait` откладывает остаток списка, не блокируя игру.
  */
 export class Narrative {
   private readonly w: World;
@@ -20,21 +27,145 @@ export class Narrative {
     for (const b of w.cfg.night.beats) {
       if (this.done.has(b.id) || !this.check(b)) continue;
       this.done.add(b.id);
-      for (const key of b.lines) this.queue.push({ key, style: b.style ?? 0 });
+      this.run(b.do);
     }
     if (this.queue.length > 0 && w.time >= this.nextLineAt) {
       const l = this.queue.shift()!;
       w.emit('line', 0, 0, 0, l.style, 0, 0, l.key);
-      this.nextLineAt = w.time + 4.2;
+      this.nextLineAt = w.time + 3.6;
     }
   }
 
-  private check(b: BeatDef): boolean {
+  private check(b: Beat): boolean {
+    const c: Condition = b.when;
     const w = this.w;
-    const c = b.when;
-    if ('t' in c) return w.time >= c.t;
-    if ('flag' in c) return w.flags.has(c.flag);
-    if ('sanityBelow' in c) return w.player.sanity < c.sanityBelow;
-    return false;
+    if (c.t !== undefined && w.time < c.t) return false;
+    if (c.flag !== undefined && !w.flags.has(c.flag)) return false;
+    if (c.notFlag !== undefined && w.flags.has(c.notFlag)) return false;
+    if (c.sanityBelow !== undefined && w.player.sanity >= c.sanityBelow) return false;
+    return true;
+  }
+
+  run(list: readonly Effect[], from = 0): void {
+    for (let i = from; i < list.length; i++) {
+      const e = list[i]!;
+      if ('wait' in e) {
+        this.w.later(e.wait, () => this.run(list, i + 1));
+        return;
+      }
+      this.apply(e);
+    }
+  }
+
+  private apply(e: Effect): void {
+    const w = this.w;
+    const p = w.player;
+    if ('line' in e) this.queue.push({ key: e.line, style: e.style ?? 0 });
+    else if ('note' in e) w.emit('note', 0, 0, 0, 0, 0, 0, e.note);
+    else if ('openDoor' in e) w.setDoor(e.openDoor, true);
+    else if ('closeDoor' in e) w.setDoor(e.closeDoor, false);
+    else if ('light' in e) w.setHouseLight(e.light, e.on);
+    else if ('deadAir' in e) w.air = 0;
+    else if ('flag' in e) w.flags.add(e.flag);
+    else if ('sanity' in e) p.sanity = Math.max(0, Math.min(100, p.sanity + e.sanity));
+    else if ('fragment' in e) w.addFragment(p.x, p.y + 1, p.z);
+    else if ('objective' in e) {
+      w.objective = e.objective;
+      if (e.marker !== undefined) w.marker = e.marker;
+    } else if ('spawn' in e) {
+      for (let k = 0; k < e.count; k++) {
+        const [x, z] = this.spot(e.at, e.house);
+        spawnEnemy(w, KIND_BY_ID[e.spawn], x, z);
+      }
+    } else if ('appear' in e) this.appear(e.appear, e.house);
+    else if ('despawnPier' in e) {
+      for (const en of w.enemies) {
+        if (en.active && en.kind === Kind.Apparition && (en.state === 1 || en.state === 3)) {
+          w.emit('vanish', en.x, en.y, en.z, en.kind, 2);
+          en.active = false;
+        }
+      }
+      const pier = w.interactables.find((it) => it.id === 'pier');
+      if (pier) pier.enabled = false;
+    } else if ('scare' in e) {
+      if (e.scare === 'jumpscare') w.jumpscare();
+      else if (e.scare === 'turn') {
+        for (const en of w.enemies) if (en.active && en.kind === Kind.Apparition && en.state === 1) en.state = 3;
+      } else {
+        const h = e.house !== undefined ? w.layout.houses[e.house] : undefined;
+        w.emit('scare', h?.x ?? w.layout.pole.x, 1, h?.z ?? w.layout.pole.z, e.house ?? -1, 0, 0, e.scare);
+      }
+    } else if ('drop' in e) {
+      const h = w.layout.houses[e.house];
+      if (!h) return;
+      let x: number;
+      let z: number;
+      if (e.inside) {
+        const it = interiorOf(e.house);
+        [x, z] = toWorld(h, it?.spot[0] ?? 0, it?.spot[1] ?? 0);
+      } else {
+        const d = doorOf(h, 1.3);
+        x = d.x;
+        z = d.z;
+      }
+      const kind = e.drop === 'weapon' ? 1 : e.drop === 'dynamite' ? 2 : e.drop === 'med' ? 3 : 0;
+      w.director.dropPickup(kind, e.weapon ? weaponIndex(e.weapon) : 0, x, z);
+    }
+  }
+
+  private spot(at: SpawnAt, house?: number): [number, number] {
+    const w = this.w;
+    const r = w.rng;
+    const h = house !== undefined ? w.layout.houses[house] : undefined;
+    if (at === 'doorOut' && h) {
+      const d = doorOf(h, r.range(1.5, 3.5));
+      return [d.x + r.range(-1, 1), d.z + r.range(-1, 1)];
+    }
+    if (at === 'inside' && h) return toWorld(h, r.range(-1, 1), r.range(-1.2, 0));
+    if (at === 'pierWater') return [WORLD.pier.x1 + r.range(1, 3), (WORLD.pier.z0 + WORLD.pier.z1) / 2 + r.range(-2, 2)];
+    if (at === 'crevice') return [WORLD.crevice.ax + r.range(-1, 1), WORLD.crevice.az + r.range(-1, 1)];
+    const p = w.player;
+    for (let i = 0; i < 10; i++) {
+      const a = (at === 'behind' ? p.yaw + Math.PI : r.range(0, 6.28)) + r.range(-1, 1);
+      const x = p.x + Math.cos(a) * 20;
+      const z = p.z + Math.sin(a) * 20;
+      if (!isWater(x, z)) return [x, z];
+    }
+    return [p.x + 20, p.z];
+  }
+
+  /**
+   * Явления. Состояния призрака: 0 — исчезает от взгляда; 1 — стоит спиной (пристань);
+   * 3 — обернулся; 2 — за спиной: стоит, пока не посмотришь, и тогда — лицо.
+   */
+  private appear(at: 'pier' | 'behind' | 'pole' | 'window', house?: number): void {
+    const w = this.w;
+    const p = w.player;
+    if (at === 'pier') {
+      const e = spawnEnemy(w, Kind.Apparition, WORLD.pier.x1 - 0.5, (WORLD.pier.z0 + WORLD.pier.z1) / 2);
+      if (e) {
+        e.state = 1;
+        e.tx = 9999;
+      }
+      w.flags.add('pierFigure');
+      const pier = w.interactables.find((it) => it.id === 'pier');
+      if (pier) pier.enabled = true;
+    } else if (at === 'behind') {
+      const a = p.yaw + Math.PI;
+      const e = spawnEnemy(w, Kind.Apparition, p.x + Math.cos(a) * 1.3, p.z + Math.sin(a) * 1.3);
+      if (e) {
+        e.state = 2;
+        e.tx = 7;
+      }
+    } else if (at === 'pole') {
+      const e = spawnEnemy(w, Kind.Apparition, w.layout.pole.x + 0.9, w.layout.pole.z + 0.6);
+      if (e) e.tx = 1.4;
+    } else if (at === 'window' && house !== undefined) {
+      const h = w.layout.houses[house];
+      if (!h) return;
+      const [x, z] = toWorld(h, h.w * 0.3, h.d / 2 - 0.5);
+      const e = spawnEnemy(w, Kind.Apparition, x, z);
+      if (e) e.tx = 2.2;
+    }
   }
 }

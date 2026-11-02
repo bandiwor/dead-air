@@ -4,6 +4,8 @@ import { WORLD, groundAt, heightAt } from '../proc/terrain';
 import { TRAIL_SIZE, type World } from './world';
 import type { Enemy } from './types';
 import { damagePlayer } from './combat';
+import { houseAt } from './houses';
+import { doorOf } from '../proc/layout';
 import { PLAYER_R } from './player';
 
 const TORCH_RANGE = 16;
@@ -183,6 +185,7 @@ function whisperer(w: World, e: Enemy, dist: number, nearFlare: number, dt: numb
       if (e.litTime > 2.2) e.litTime = 0;
     }
   }
+  [tx, tz] = route(w, e, tx, tz);
   moveToward(w, e, tx, tz, speed, dt);
   e.stepAcc += speed * dt;
 
@@ -224,7 +227,8 @@ function mute(w: World, e: Enemy, dist: number, dt: number): void {
       e.tx = w.layout.pole.x;
       e.tz = w.layout.pole.z;
     }
-    const d = moveToward(w, e, e.tx, e.tz, e.speed, dt);
+    const [rx, rz] = route(w, e, e.tx, e.tz);
+    const d = moveToward(w, e, rx, rz, e.speed, dt);
     if (d < 1.5 && best < 0) {
       // бредёт к последнему месту, где было шумно, затем — к площади
       e.tx = w.layout.pole.x + w.rng.range(-8, 8);
@@ -284,6 +288,7 @@ function echo(w: World, e: Enemy, dist: number, dt: number): void {
   }
   if (dist < e.r + PLAYER_R + 0.2 && e.atkCd <= 0) {
     damagePlayer(w, ENEMIES[Kind.Echo].dmg, e.x, e.z, 4);
+    w.flags.add('broke:3');
     p.sanity = Math.max(0, p.sanity - 14);
     e.atkCd = 1;
     e.delay = 46; // отпрянул назад по следу
@@ -292,7 +297,30 @@ function echo(w: World, e: Enemy, dist: number, dt: number): void {
 
 function apparition(w: World, e: Enemy, dt: number): void {
   const p = w.player;
+  void dt;
+  if (e.state === 1) {
+    // стоит спиной на краю пристани, лицом к воде; от взгляда не исчезает — ждёт, что позовут
+    e.yaw = 0;
+    return;
+  }
+  if (e.state === 3) {
+    e.yaw = e.yaw + wrapAngle(Math.atan2(p.z - e.z, p.x - e.x) - e.yaw) * 0.04;
+    return;
+  }
   e.yaw = Math.atan2(p.z - e.z, p.x - e.x);
+  if (e.state === 2) {
+    // за спиной: исчезнет, только когда вы обернётесь и посветите на него — и тогда лицо
+    const dx = e.x - p.x;
+    const dz = e.z - p.z;
+    const d = Math.hypot(dx, dz) || 1;
+    const looking = (dx * Math.cos(p.yaw) + dz * Math.sin(p.yaw)) / d > Math.cos(0.55);
+    if ((looking && e.t > 0.3) || e.t > e.tx) {
+      e.active = false;
+      w.emit('vanish', e.x, e.y, e.z, e.kind, 1);
+      w.jumpscare();
+    }
+    return;
+  }
   if (e.litTorch && e.t > 0.2) {
     w.emit('vanish', e.x, e.y, e.z, e.kind, 2);
     p.sanity = clamp(p.sanity - 6, 0, 100);
@@ -303,7 +331,28 @@ function apparition(w: World, e: Enemy, dt: number): void {
     w.emit('vanish', e.x, e.y, e.z, e.kind, 0);
     e.active = false;
   }
-  void dt;
+}
+
+/**
+ * Если игрок в доме, а враг снаружи (или наоборот) — идти через дверной проём:
+ * сначала к крыльцу, потом внутрь. Так они «входят в дверь», а не трутся о стены.
+ */
+function route(w: World, e: Enemy, tx: number, tz: number): [number, number] {
+  const ph = w.playerHouse;
+  const eh = houseAt(w.layout.houses, e.x, e.z);
+  if (ph === eh) return [tx, tz];
+  const h = w.layout.houses[ph >= 0 ? ph : eh];
+  if (!h) return [tx, tz];
+  const outside = doorOf(h, 1.4);
+  const inside = doorOf(h, -0.9);
+  if (ph >= 0) {
+    // снаружи → внутрь
+    if (Math.hypot(e.x - outside.x, e.z - outside.z) > 0.9) return [outside.x, outside.z];
+    return [inside.x, inside.z];
+  }
+  // изнутри → наружу
+  if (Math.hypot(e.x - inside.x, e.z - inside.z) > 0.7) return [inside.x, inside.z];
+  return [outside.x, outside.z];
 }
 
 function separate(w: World): void {

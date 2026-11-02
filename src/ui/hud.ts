@@ -22,6 +22,8 @@ export class Hud {
   private readonly subs: HTMLElement;
   private readonly toast: HTMLElement;
   private readonly marker: HTMLElement;
+  private readonly goalMarker: HTMLElement;
+  private readonly objective: HTMLElement;
   readonly buttons: HTMLElement;
   readonly pauseBtn: HTMLElement;
   private cache = new Map<HTMLElement, string>();
@@ -59,6 +61,8 @@ export class Hud {
     this.subs = h('div', 'subs', '', this.root);
     this.toast = h('div', 'toast', '', this.root);
     this.marker = h('div', 'marker hidden', '▲', this.root);
+    this.goalMarker = h('div', 'marker goal hidden', '▲', this.root);
+    this.objective = h('div', 'hud-objective', '', this.root);
 
     this.buttons = h('div', 'buttons', undefined, this.root);
     const mk = (id: 'action' | 'swap' | 'throw' | 'reload', key: Parameters<typeof t>[0]): void => {
@@ -102,7 +106,20 @@ export class Hud {
     this.subs.classList.remove('on');
   }
 
-  update(w: World, dt: number, touch: boolean, hutScreen: { x: number; y: number }): void {
+  private placeMarker(el: HTMLElement, pt: { x: number; y: number } | null): void {
+    show(el, !!pt);
+    if (!pt) return;
+    const off = pt.x < 0 || pt.y < 0 || pt.x > innerWidth || pt.y > innerHeight;
+    const cx = innerWidth / 2;
+    const cy = innerHeight / 2;
+    const ang = Math.atan2(pt.y - cy, pt.x - cx);
+    const r = Math.min(cx, cy) * 0.82;
+    const mx = off ? cx + Math.cos(ang) * r : pt.x;
+    const my = off ? cy + Math.sin(ang) * r : pt.y - 40;
+    el.style.transform = `translate(${mx}px, ${my}px) rotate(${off ? ang + Math.PI / 2 : Math.PI}rad)`;
+  }
+
+  update(w: World, dt: number, touch: boolean, hutScreen: { x: number; y: number }, goalScreen: { x: number; y: number } | null): void {
     const p = w.player;
     const hours = w.clockHours % 24;
     const hh = Math.floor(hours);
@@ -127,25 +144,26 @@ export class Hud {
     this.set(this.ammo, p.reload > 0 ? t('hud.reload') : mag === 0 && p.reserve[p.weapon] === 0 ? t('hud.empty') : `${mag} / ${p.reserve[p.weapon]}`);
     this.set(this.dyn, `${t('btn.throw')} × ${p.dynamite}`);
 
-    show(this.prompt, p.canReel);
+    // подсказка действия: бобина или объект в фокусе
+    const focus = p.focus >= 0 ? w.interactables[p.focus] : undefined;
+    show(this.prompt, p.canReel || !!focus);
     if (p.canReel) {
       this.set(this.promptLabel, touch ? t('prompt.reel') : t('prompt.reelKb'));
       this.promptFill.style.transform = `scaleX(${p.reel.toFixed(3)})`;
+      this.prompt.classList.remove('rule');
+    } else if (focus) {
+      const key = focus.kind === 'knock' ? 'prompt.knock' : focus.kind === 'pier' ? 'prompt.call' : focus.kind === 'switch' ? 'prompt.switch' : 'prompt.read';
+      this.set(this.promptLabel, t(key));
+      this.promptFill.style.transform = `scaleX(${focus.hold > 0 ? (p.focusHold / focus.hold).toFixed(3) : '0'})`;
+      // нарушение Наказа подсвечено иначе — игрок понимает цену выбора
+      this.prompt.classList.toggle('rule', focus.kind !== 'note');
     }
 
-    // метка радиоузла, когда бобина садится и узел за краем экрана
-    const needAir = w.air < 0.35 && !p.canReel;
-    const off = hutScreen.x < 0 || hutScreen.y < 0 || hutScreen.x > innerWidth || hutScreen.y > innerHeight;
-    show(this.marker, needAir);
-    if (needAir) {
-      const cx = innerWidth / 2;
-      const cy = innerHeight / 2;
-      const ang = Math.atan2(hutScreen.y - cy, hutScreen.x - cx);
-      const r = Math.min(cx, cy) * 0.82;
-      const mx = off ? cx + Math.cos(ang) * r : hutScreen.x;
-      const my = off ? cy + Math.sin(ang) * r : hutScreen.y - 40;
-      this.marker.style.transform = `translate(${mx}px, ${my}px) rotate(${off ? ang + Math.PI / 2 : Math.PI}rad)`;
-    }
+    this.set(this.objective, w.objective ? t(w.objective as Parameters<typeof t>[0]) : '');
+
+    // метки: радиоузел (когда бобина садится) и сюжетная цель
+    this.placeMarker(this.marker, w.air < 0.35 && !p.canReel ? hutScreen : null);
+    this.placeMarker(this.goalMarker, goalScreen);
 
     // субтитры
     this.subT -= dt;

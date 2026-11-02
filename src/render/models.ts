@@ -177,58 +177,173 @@ export interface HouseParts {
   windows: THREE.BufferGeometry;
 }
 
-export function houseGeometry(w: number, d: number, h: number, seed: number, flatRoof = false): HouseParts {
+export function houseGeometry(w: number, d: number, h: number, seed: number, flatRoof = false, hollow = false): HouseParts {
   const r = new Rng(seed);
   const walls = new Builder(seed);
   const roof = new Builder(seed + 1);
   const trim = new Builder(seed + 2);
   const win = new Builder(seed + 3);
+  const T = 0.18; // толщина сруба (как в симуляции)
+  const DH = 0.62; // полупроём двери
+  const wallC = 0xb09276;
 
-  walls.box(w, h, d, { pos: [0, h / 2 - 0.15, 0], color: 0xb09276, jitter: 0.1 });
-  // нижний венец потемнее, чуть шире
-  walls.box(w + 0.12, 0.35, d + 0.12, { pos: [0, 0.05, 0], color: 0x6b5848 });
+  if (hollow) {
+    // полый сруб: стены изнутри видны, когда снята крыша
+    walls.box(w, h, T, { pos: [0, h / 2 - 0.15, -d / 2 + T / 2], color: wallC, jitter: 0.1 });
+    walls.box(T, h, d, { pos: [-w / 2 + T / 2, h / 2 - 0.15, 0], color: wallC, jitter: 0.1 });
+    walls.box(T, h, d, { pos: [w / 2 - T / 2, h / 2 - 0.15, 0], color: wallC, jitter: 0.1 });
+    const side = w / 2 - DH;
+    walls.box(side, h, T, { pos: [-(DH + side / 2), h / 2 - 0.15, d / 2 - T / 2], color: wallC, jitter: 0.1 });
+    walls.box(side, h, T, { pos: [DH + side / 2, h / 2 - 0.15, d / 2 - T / 2], color: wallC, jitter: 0.1 });
+    walls.box(DH * 2, h - 1.95, T, { pos: [0, 1.95 + (h - 1.95) / 2 - 0.15, d / 2 - T / 2], color: wallC });
+    // потолок — часть «крыши»: снимается вместе с ней
+    roof.box(w, 0.06, d, { pos: [0, h - 0.18, 0], color: 0x4a3c30 });
+  } else {
+    walls.box(w, h, d, { pos: [0, h / 2 - 0.15, 0], color: wallC, jitter: 0.1 });
+  }
+  walls.box(w + 0.12, 0.3, 0.12, { pos: [0, 0.02, d / 2 + 0.0], color: 0x6b5848 });
+  walls.box(w + 0.12, 0.3, 0.12, { pos: [0, 0.02, -d / 2], color: 0x6b5848 });
 
   if (flatRoof) {
     roof.box(w + 0.6, 0.12, d + 0.6, { pos: [0, h + 0.05, 0], rot: [0.12, 0, 0], color: 0x9a9890 });
   } else {
     const rh = w * 0.42;
-    walls.add(gable(w, rh, d), { pos: [0, h - 0.15, 0], color: 0x9c8064 });
+    roof.add(gable(w, rh, d), { pos: [0, h - 0.15, 0], color: 0x9c8064 });
     const slope = Math.atan2(rh, w / 2);
     const len = Math.hypot(w / 2, rh) + 0.35;
-    for (const side of [-1, 1]) {
+    for (const sd of [-1, 1]) {
       roof.box(len, 0.1, d + 0.7, {
-        pos: [(side * w) / 4 + side * 0.04, h - 0.15 + rh / 2 + 0.07, 0],
-        rot: [0, 0, -side * slope],
+        pos: [(sd * w) / 4 + sd * 0.04, h - 0.15 + rh / 2 + 0.07, 0],
+        rot: [0, 0, -sd * slope],
         color: 0x8e8e86,
         jitter: 0.08,
       });
     }
-    // труба
-    trim.box(0.45, 1.1, 0.45, { pos: [w * 0.22, h + rh * 0.55, -d * 0.18], color: 0x5a4e46, jitter: 0.2 });
+    roof.box(0.45, 1.1, 0.45, { pos: [w * 0.22, h + rh * 0.55, -d * 0.18], color: 0x5a4e46, jitter: 0.2 });
   }
-  // дверь и крыльцо (на +z)
-  trim.box(0.9, 1.75, 0.08, { pos: [0, 0.9, d / 2 + 0.03], color: 0x4a3b2e });
-  trim.box(1.6, 0.18, 0.9, { pos: [0, 0.0, d / 2 + 0.45], color: 0x6a5a48 });
-  trim.box(0.08, 1.9, 0.08, { pos: [-0.75, 0.9, d / 2 + 0.85], color: 0x5a4a3a });
-  trim.box(0.08, 1.9, 0.08, { pos: [0.75, 0.9, d / 2 + 0.85], color: 0x5a4a3a });
-  trim.box(1.8, 0.08, 1.0, { pos: [0, 1.85, d / 2 + 0.45], rot: [0.25, 0, 0], color: 0x6f6e66 });
+  if (!hollow) trim.box(0.9, 1.75, 0.08, { pos: [0, 0.9, d / 2 + 0.03], color: 0x4a3b2e });
+  // крыльцо (на +z)
+  trim.box(1.7, 0.18, 0.9, { pos: [0, 0.0, d / 2 + 0.45], color: 0x6a5a48 });
+  trim.box(0.08, 1.9, 0.08, { pos: [-0.8, 0.9, d / 2 + 0.85], color: 0x5a4a3a });
+  trim.box(0.08, 1.9, 0.08, { pos: [0.8, 0.9, d / 2 + 0.85], color: 0x5a4a3a });
+  trim.box(1.9, 0.08, 1.0, { pos: [0, 1.95, d / 2 + 0.45], rot: [0.25, 0, 0], color: 0x6f6e66 });
 
-  // окна с наличниками (резные наличники — белёные доски)
+  // окна сквозные — свет изнутри виден снаружи, ночь снаружи видна изнутри
   const winSpots: [number, number, number][] = [
-    [-w * 0.3, 1.25, d / 2 + 0.02],
-    [w * 0.3, 1.25, d / 2 + 0.02],
-    [w / 2 + 0.02, 1.25, r.range(-0.6, 0.6)],
-    [-w / 2 - 0.02, 1.25, r.range(-0.6, 0.6)],
+    [-w * 0.32, 1.25, d / 2 - T / 2],
+    [w * 0.32, 1.25, d / 2 - T / 2],
+    [w / 2 - T / 2, 1.25, r.range(-0.6, 0.6)],
+    [-w / 2 + T / 2, 1.25, r.range(-0.6, 0.6)],
   ];
   for (const [x, y, z] of winSpots) {
-    const side = Math.abs(x) > w / 2 - 0.01;
-    const rotY = side ? Math.PI / 2 : 0;
-    win.box(0.62, 0.72, 0.04, { pos: [x, y, z], rot: [0, rotY, 0], color: 0xffffff });
-    trim.box(0.82, 0.1, 0.06, { pos: [x, y + 0.43, z], rot: [0, rotY, 0], color: 0xb8b0a0 });
-    trim.box(0.82, 0.1, 0.06, { pos: [x, y - 0.43, z], rot: [0, rotY, 0], color: 0xb8b0a0 });
-    trim.box(0.62, 0.05, 0.06, { pos: [x, y, z], rot: [0, rotY, 0], color: 0x3a3028 }); // переплёт
+    const sideWin = Math.abs(x) > w / 2 - 0.2;
+    const rotY = sideWin ? Math.PI / 2 : 0;
+    win.box(0.62, 0.72, T + 0.05, { pos: [x, y, z], rot: [0, rotY, 0], color: 0xffffff });
+    const ox = sideWin ? Math.sign(x) * (T / 2 + 0.03) : 0;
+    const oz = sideWin ? 0 : T / 2 + 0.03;
+    trim.box(0.82, 0.1, 0.06, { pos: [x + ox, y + 0.43, z + oz], rot: [0, rotY, 0], color: 0xb8b0a0 });
+    trim.box(0.82, 0.1, 0.06, { pos: [x + ox, y - 0.43, z + oz], rot: [0, rotY, 0], color: 0xb8b0a0 });
+    trim.box(0.62, 0.05, 0.06, { pos: [x + ox, y, z + oz], rot: [0, rotY, 0], color: 0x3a3028 });
   }
   return { walls: walls.build(), roof: roof.build(), trim: trim.build(), windows: win.build() };
+}
+
+/** Дверь: петля в начале координат, полотно уходит в +x. */
+export function doorGeometry(): THREE.BufferGeometry {
+  const b = new Builder(17);
+  b.box(1.22, 1.9, 0.07, { pos: [0.61, 0.95 - 0.15, 0], color: 0x4a3b2e, jitter: 0.15 });
+  b.box(1.1, 0.1, 0.09, { pos: [0.61, 0.5, 0], color: 0x3a2e24 });
+  b.box(1.1, 0.1, 0.09, { pos: [0.61, 1.3, 0], color: 0x3a2e24 });
+  b.box(0.06, 0.06, 0.12, { pos: [1.05, 0.95, 0], color: 0x1e1c1a });
+  return b.build();
+}
+
+/** Мебель и пол одного дома (локальные координаты). */
+export function furnitureGeometry(list: readonly { type: string; x: number; z: number; rot?: number }[], w: number, d: number, seed: number): THREE.BufferGeometry {
+  const r = new Rng(seed);
+  const b = new Builder(seed);
+  b.box(w - 0.36, 0.05, d - 0.36, { pos: [0, -0.1, 0], color: 0x5a4a3a, jitter: 0.25 });
+  for (const f of list) {
+    const rot = f.rot ?? 0;
+    const at = (lx: number, ly: number, lz: number): [number, number, number] => {
+      const c = Math.cos(rot);
+      const s = Math.sin(rot);
+      return [f.x + lx * c + lz * s, ly, f.z - lx * s + lz * c];
+    };
+    const box = (bw: number, bh: number, bd: number, lx: number, ly: number, lz: number, color: number, extra: [number, number, number] = [0, 0, 0]): void => {
+      b.box(bw, bh, bd, { pos: at(lx, ly, lz), rot: [extra[0], rot + extra[1], extra[2]], color, jitter: 0.15 });
+    };
+    switch (f.type) {
+      case 'table':
+        box(1.2, 0.06, 0.75, 0, 0.72, 0, 0x6a5440);
+        for (const [lx, lz] of [[-0.5, -0.3], [0.5, -0.3], [-0.5, 0.3], [0.5, 0.3]] as const) box(0.06, 0.72, 0.06, lx, 0.36, lz, 0x4a3a2c);
+        box(0.22, 0.04, 0.22, -0.25, 0.77, 0.12, 0xb8b0a0);
+        box(0.22, 0.04, 0.22, 0.25, 0.77, -0.12, 0xb8b0a0);
+        break;
+      case 'chair':
+      case 'chairWall':
+        box(0.42, 0.05, 0.42, 0, 0.45, 0, 0x5a4634);
+        box(0.42, 0.5, 0.05, 0, 0.7, -0.19, 0x5a4634);
+        for (const [lx, lz] of [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]] as const) box(0.05, 0.45, 0.05, lx, 0.22, lz, 0x3a2e24);
+        break;
+      case 'chairDown':
+        box(0.42, 0.05, 0.42, 0, 0.21, 0, 0x5a4634, [Math.PI / 2, r.range(0, 3), 0]);
+        box(0.42, 0.5, 0.05, 0.1, 0.05, 0.3, 0x5a4634, [0, r.range(0, 3), Math.PI / 2]);
+        break;
+      case 'bed':
+        box(1.9, 0.35, 0.9, 0, 0.18, 0, 0x4a3a2c);
+        box(1.8, 0.12, 0.85, 0, 0.42, 0, 0x6e6a60);
+        box(0.4, 0.12, 0.6, -0.65, 0.52, 0, 0x8a8478);
+        break;
+      case 'stove':
+        box(1.3, 1.6, 1.5, 0, 0.8, 0, 0xa8a49a);
+        box(0.5, 0.4, 0.06, 0, 0.75, 0.76, 0x0a0806);
+        box(0.6, 0.9, 0.6, 0.2, 2.0, -0.3, 0x9a968c);
+        break;
+      case 'shelf':
+        box(1.0, 0.05, 0.28, 0, 1.3, 0, 0x5a4634);
+        box(1.0, 0.05, 0.28, 0, 0.9, 0, 0x5a4634);
+        break;
+      case 'radio':
+        box(0.42, 0.28, 0.24, 0, 1.47, 0, 0x5a3e2a);
+        box(0.3, 0.12, 0.02, 0, 1.5, 0.125, 0xc8a050);
+        break;
+      case 'mirror':
+        box(0.74, 1.15, 0.06, 0, 1.1, 0, 0x3a2e24);
+        box(0.84, 1.25, 0.03, 0, 1.08, 0.05, 0xc8c4b8);
+        break;
+      case 'frame':
+        box(0.5, 0.4, 0.04, 0, 1.5, 0, 0x2a2420);
+        box(0.42, 0.32, 0.02, 0, 1.5, 0.025, 0xb0a890);
+        break;
+      case 'drawings':
+        for (let i = 0; i < 4; i++) box(0.3, 0.24, 0.015, -0.6 + i * 0.4, 1.2 + (i % 2) * 0.3, 0, 0xc8c0a8, [0, 0, r.range(-0.15, 0.15)]);
+        break;
+      case 'bench':
+        box(1.4, 0.06, 0.35, 0, 0.45, 0, 0x5a4634);
+        box(0.06, 0.45, 0.3, -0.6, 0.22, 0, 0x3a2e24);
+        box(0.06, 0.45, 0.3, 0.6, 0.22, 0, 0x3a2e24);
+        break;
+      case 'chest':
+        box(0.9, 0.5, 0.5, 0, 0.25, 0, 0x4a3828);
+        box(0.92, 0.05, 0.52, 0, 0.5, 0, 0x2a221a);
+        break;
+      case 'hole':
+        box(1.3, 0.04, 1.0, 0, -0.06, 0, 0x020202);
+        for (let i = 0; i < 4; i++) box(0.16, 0.04, 0.9, -0.5 + i * 0.33, 0.1, 0, 0x5a4a3a, [r.range(-0.6, 0.6), 0, r.range(-0.8, 0.8)]);
+        break;
+    }
+  }
+  return b.build();
+}
+
+/** Рубильник на стене радиоузла. */
+export function switchGeometry(): THREE.BufferGeometry {
+  const b = new Builder(23);
+  b.box(0.36, 0.5, 0.12, { pos: [0, 1.3, 0], color: 0x3a3e38 });
+  b.box(0.05, 0.3, 0.05, { pos: [0, 1.42, 0.1], rot: [0.5, 0, 0], color: 0x1a1a18 });
+  b.box(0.1, 0.06, 0.06, { pos: [0, 1.56, 0.17], color: 0xb08a3a });
+  return b.build();
 }
 
 export function poleGeometry(): THREE.BufferGeometry {

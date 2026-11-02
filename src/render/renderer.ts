@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp, damp } from '../core/math';
 import type { World } from '../sim/world';
-import { groundAt } from '../proc/terrain';
+import { WORLD, groundAt } from '../proc/terrain';
 import type { TextureSet } from './textures';
 import { buildWorldView, COLORS, type WorldView } from './worldView';
 import { ActorsView } from './actors';
@@ -56,7 +56,8 @@ export class GameRenderer {
   flashFx = 0;
   fade = 0;
   flashlightOn = true;
-  private faceT = 0;
+  /** Время от начала скримера (−1 — нет). Лицо → тьма → лицо ещё раз: второй удар бьёт сильнее первого. */
+  private faceT = -1;
   private flicker = 0;
 
   constructor(canvas: HTMLCanvasElement, w: World, tex: TextureSet, quality: number) {
@@ -141,21 +142,25 @@ export class GameRenderer {
     this.trauma = clamp(this.trauma + t, 0, 1);
   }
 
-  showFace(seconds: number): void {
-    this.faceT = seconds;
+  showFace(_seconds = 0): void {
+    this.faceT = 0;
   }
 
   /** Камера по умолчанию: наклонный вид сверху, с упреждением по прицелу. */
+  private zoom = 0;
+
   followCamera(w: World, dt: number): void {
     const p = w.player;
-    const lead = 3.2;
+    // в доме камера опускается и подходит ближе: тесно, видно только комнату
+    this.zoom = damp(this.zoom, w.playerHouse >= 0 ? 1 : 0, 2.5, dt);
+    const lead = 3.2 - this.zoom * 2.4;
     const tx = p.x + Math.cos(p.yaw) * lead;
     const tz = p.z + Math.sin(p.yaw) * lead * 0.8;
     const ty = p.y;
     this.camLook.x = damp(this.camLook.x, tx, 4, dt);
     this.camLook.y = damp(this.camLook.y, ty + 0.5, 4, dt);
     this.camLook.z = damp(this.camLook.z, tz, 4, dt);
-    this.camPos.set(this.camLook.x, this.camLook.y + 15, this.camLook.z + 9.8);
+    this.camPos.set(this.camLook.x, this.camLook.y + 15 - this.zoom * 6.5, this.camLook.z + 9.8 - this.zoom * 4.6);
     this.camera.fov = damp(this.camera.fov, 42, 3, dt);
   }
 
@@ -234,19 +239,48 @@ export class GameRenderer {
     this.camera.updateProjectionMatrix();
 
     // скример
-    this.faceT -= dt;
-    this.actors.face.visible = this.faceT > 0;
-    if (this.faceT > 0) {
-      // рывок навстречу камере + дрожь
+    let faceOn = false;
+    if (this.faceT >= 0) {
+      this.faceT += dt;
+      const f = this.faceT;
+      faceOn = f < 0.5 || (f > 0.78 && f < 0.92);
+      if (f > 1.1) this.faceT = -1;
+      // рывок навстречу камере + дрожь; второй раз — уже вплотную
       this.actors.face.position.x = (Math.random() - 0.5) * 0.05;
-      this.actors.face.position.z = -1.6 + Math.min(0.4, (0.42 - this.faceT) * 1.4);
-      this.actors.face.rotation.z = (Math.random() - 0.5) * 0.2;
+      this.actors.face.position.z = f < 0.5 ? -1.6 + Math.min(0.45, f * 1.6) : -1.05;
+      this.actors.face.rotation.z = (Math.random() - 0.5) * 0.25;
+    }
+    this.actors.face.visible = faceOn;
+    // дома: снять крышу над тем, где игрок; двери; свет внутри
+    const v = this.view;
+    for (let i = 0; i < v.roofs.length; i++) v.roofs[i]!.visible = w.playerHouse !== i;
+    for (let i = 0; i < v.doors.length; i++) {
+      const open = w.doorOpen[i];
+      const d = v.doors[i]!;
+      d.rotation.y = damp(d.rotation.y, open ? 1.75 : 0, open ? 1.6 : 22, dt);
+    }
+    const ph = w.playerHouse;
+    const pierFigure = w.flags.has('pierFigure') && w.interactables.some((it) => it.id === 'pier' && it.enabled);
+    if (ph >= 0 && w.houseLight[ph]) {
+      const h = w.layout.houses[ph]!;
+      v.interiorLight.color.setHex(0xffb060);
+      v.interiorLight.position.set(h.x, (v.houseY[ph] ?? 0) + 2.1, h.z);
+      v.interiorLight.distance = 7;
+      v.interiorLight.intensity = 16 * (Math.random() < 0.04 ? 0.5 : 1);
+    } else if (pierFigure) {
+      // та же лампа (число источников постоянно) — холодный просвет луны над краем пристани
+      v.interiorLight.color.setHex(0x9fb8e0);
+      v.interiorLight.position.set(WORLD.pier.x1 - 0.5, 3.5, (WORLD.pier.z0 + WORLD.pier.z1) / 2 + 0.6);
+      v.interiorLight.distance = 9;
+      v.interiorLight.intensity = 22;
+    } else {
+      v.interiorLight.intensity = 0;
     }
 
     // пост
     const u = this.post.u;
     u.uTime.value = this.time;
-    u.uGlitch.value = clamp(this.glitch + (this.faceT > 0 ? 1 : 0), 0, 1);
+    u.uGlitch.value = clamp(this.glitch + (faceOn ? 1 : 0), 0, 1);
     u.uSanity.value = playing ? clamp(1 - sanity, 0, 1) * 0.85 : 0.1;
     u.uHurt.value = this.hurt;
     u.uFlash.value = this.flashFx * this.fx.flashScale;

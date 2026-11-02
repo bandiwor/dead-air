@@ -12,12 +12,15 @@ import { enterImmersive, isTouch, onHidden, setVibration } from '../platform/nat
 import { loadSettings, saveSettings, type Settings } from '../platform/storage';
 import { Hud } from '../ui/hud';
 import { Screens } from '../ui/screens';
-import { Cutscene, DAWN, INTRO } from './cutscene';
+import { Cutscene, DAWN, INTRO, type Shot } from './cutscene';
+import type { StrKey } from '../i18n';
+import { doorOf } from '../proc/layout';
+import { WORLD } from '../proc/terrain';
 import { Updater, type UpdateStatus } from '../platform/updates';
 import { t } from '../i18n';
 import { handleEvents, nearestEnemy } from './events';
 
-type Mode = 'boot' | 'loading' | 'title' | 'intro' | 'play' | 'pause' | 'dying' | 'dead' | 'dawn' | 'dawnScreen';
+type Mode = 'boot' | 'loading' | 'title' | 'intro' | 'play' | 'note' | 'pause' | 'dying' | 'dead' | 'dawn' | 'dawnScreen';
 
 const STEP = 1 / 60;
 const TEX_SEED = 1953;
@@ -83,7 +86,6 @@ export class Game {
       },
       onUpdateApply: () => void this.updater.apply(),
     });
-    this.screens.setRules(NIGHT1.rules);
     this.world = this.makeWorld();
     this.screens.open('boot');
     this.updater.onChange = (st) => this.onUpdateStatus(st);
@@ -224,11 +226,44 @@ export class Game {
     this.acc = 0;
   }
 
+  /** Журнал: какие пункты Наказа нарушены, что прочитано, что услышано в тишине. */
+  private refreshJournal(): void {
+    const w = this.world;
+    const rules = NIGHT1.rules.map((key, i) => ({ key, broken: w.flags.has(`broke:${i + 1}`) }));
+    const notes = w.notesRead
+      .map((id) => w.interactables.find((it) => it.id === id)?.key)
+      .filter((k): k is string => !!k) as StrKey[];
+    const heard = NIGHT1.fragments.slice(0, w.fragments);
+    this.screens.setJournal(rules, notes, heard);
+  }
+
+  private brokenCount(): number {
+    let n = 0;
+    for (let i = 1; i <= 5; i++) if (this.world.flags.has(`broke:${i}`)) n++;
+    return n;
+  }
+
+  /** Записка: игра стоит, пока её читают. */
+  private openNote(key: string): void {
+    if (this.mode !== 'play') return;
+    this.mode = 'note';
+    this.input.enabled = false;
+    this.input.reset();
+    this.screens.showNote(t(key as StrKey), () => {
+      if (this.mode !== 'note') return;
+      this.mode = 'play';
+      this.input.enabled = true;
+      this.input.reset();
+      this.acc = 0;
+    });
+  }
+
   private pause(): void {
     if (this.mode !== 'play' && this.mode !== 'intro') return;
     this.mode = 'pause';
     this.input.enabled = false;
     this.input.reset();
+    this.refreshJournal();
     this.screens.open('pause');
     this.offerUpdate();
   }
@@ -317,20 +352,26 @@ export class Game {
         this.input.enabled = false;
         this.input.reset();
       },
+      onNote: (key: string) => this.openNote(key),
       onDawn: () => {
         this.mode = 'dawn';
         this.input.enabled = false;
         this.input.reset();
         this.hud.setTouch(false);
         this.letterbox(true);
-        this.cut = new Cutscene(DAWN);
+        // концовка зависит от того, искал ли игрок правду: нарушения, записи, услышанное
+        const w2 = this.world;
+        const truth = this.brokenCount() * 2 + w2.notesRead.length + w2.fragments;
+        const shots: Shot[] = DAWN.map((sh, i) => (i === DAWN.length - 1 && truth >= 5 ? { ...sh, line: 'cut.dawn.3b' } : sh));
+        this.screens.setDawnStats(t('dawn.stats', { r: this.brokenCount(), n: w2.notesRead.length, f: w2.fragments }));
+        this.cut = new Cutscene(shots);
         this.cut.onLine = (k) => this.hud.line(k, 0);
         this.cut.start();
       },
     };
     handleEvents(w, ctx, dt);
 
-    const playing = this.mode === 'play' || this.mode === 'dying' || this.mode === 'pause';
+    const playing = this.mode === 'play' || this.mode === 'note' || this.mode === 'dying' || this.mode === 'pause';
     r.flashlightOn = this.mode !== 'title' && this.mode !== 'loading';
     r.render(w, dt, playing);
     const p = w.player;
@@ -350,9 +391,18 @@ export class Game {
     );
     const ps = r.project(p.x, p.y + 1, p.z);
     this.input.playerScreen = ps;
-    if (this.mode === 'play' || this.mode === 'intro' || this.mode === 'dawn') {
+    if (this.mode === 'play' || this.mode === 'note' || this.mode === 'intro' || this.mode === 'dawn') {
       const door = w.layout.hutDoor;
-      this.hud.update(w, dt, this.input.usingTouch || isTouch(), r.project(door.x, 1, door.z));
+      let goal: { x: number; y: number } | null = null;
+      const m = w.marker;
+      if (m && m.house !== undefined && w.playerHouse !== m.house) {
+        const h = w.layout.houses[m.house];
+        if (h) {
+          const d = doorOf(h, 1);
+          goal = r.project(d.x, 1, d.z);
+        }
+      } else if (m?.pier) goal = r.project(WORLD.pier.x1 - 0.5, 1, (WORLD.pier.z0 + WORLD.pier.z1) / 2);
+      this.hud.update(w, dt, this.input.usingTouch || isTouch(), r.project(door.x, 1, door.z), goal);
     }
   }
 }
