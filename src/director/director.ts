@@ -1,7 +1,7 @@
 import { KIND_BY_ID, Kind } from '../content/enemies';
 import { SCARES, type ScareDef, type ScareKind } from '../content/scares';
 import { weaponIndex } from '../content/weapons';
-import type { SpawnFrom, WaveDef } from '../content/night1';
+import type { SpawnFrom, WaveDef } from '../content/night';
 import { WORLD, isWater } from '../proc/terrain';
 import { spawnEnemy } from '../sim/enemies';
 import type { World } from '../sim/world';

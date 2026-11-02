@@ -11,6 +11,8 @@ export const Kind = {
   Echo: 2,
   /** Тот, кого не позвали. Исчезает, если на него посмотреть. */
   Apparition: 3,
+  /** Невидевший — закрыл лицо руками. Замирает под взглядом. */
+  Unseeing: 4,
 } as const;
 export type Kind = (typeof Kind)[keyof typeof Kind];
 
@@ -32,7 +34,8 @@ export const ENEMIES: Record<Kind, EnemyDef> = {
   [Kind.Mute]: { kind: Kind.Mute, id: 'mute', hp: 280, speed: 1.6, radius: 0.95, dmg: 18, atkCd: 1.4, lightFear: 0, mass: 6 },
   [Kind.Echo]: { kind: Kind.Echo, id: 'echo', hp: 120, speed: 0, radius: 0.4, dmg: 24, atkCd: 1, lightFear: 0, mass: 1 },
   [Kind.Apparition]: { kind: Kind.Apparition, id: 'apparition', hp: 1, speed: 0, radius: 0.4, dmg: 0, atkCd: 99, lightFear: 0, mass: 1 },
+  [Kind.Unseeing]: { kind: Kind.Unseeing, id: 'unseeing', hp: 70, speed: 5.4, radius: 0.42, dmg: 20, atkCd: 1.2, lightFear: 1, mass: 2 },
 };
 
-export type KindId = 'whisperer' | 'mute' | 'echo';
-export const KIND_BY_ID: Record<KindId, Kind> = { whisperer: Kind.Whisperer, mute: Kind.Mute, echo: Kind.Echo };
+export type KindId = 'whisperer' | 'mute' | 'echo' | 'unseeing';
+export const KIND_BY_ID: Record<KindId, Kind> = { whisperer: Kind.Whisperer, mute: Kind.Mute, echo: Kind.Echo, unseeing: Kind.Unseeing };

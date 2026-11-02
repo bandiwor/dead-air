@@ -97,7 +97,7 @@ export function damageEnemy(w: World, e: Enemy, dmg: number, kx: number, kz: num
     return;
   }
   if (e.kind === Kind.Apparition) return;
-  const mass = e.kind === Kind.Mute ? 6 : 1;
+  const mass = e.kind === Kind.Mute ? 6 : e.kind === Kind.Unseeing ? 2 : 1;
   e.hp -= dmg;
   e.flash = 1;
   e.kx += kx / mass;

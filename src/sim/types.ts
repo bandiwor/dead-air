@@ -156,7 +156,7 @@ export interface Player {
   holding: boolean;
 }
 
-export type InteractKind = 'knock' | 'note' | 'pier' | 'switch';
+export type InteractKind = 'knock' | 'note' | 'custom';
 
 export class Interactable {
   id = '';
@@ -170,4 +170,10 @@ export class Interactable {
   used = false;
   /** 0 — нажатие, иначе — секунды удержания. */
   hold = 0;
+  /** Для особых действий: подсказка, нарушает ли Наказ, эффекты, одноразовость, искра. */
+  prompt = '';
+  rule = false;
+  once = true;
+  glint = false;
+  effects: readonly import('../content/script').Effect[] = [];
 }

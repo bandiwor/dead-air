@@ -12,7 +12,7 @@ import { COLORS } from '../render/worldView';
 import type { SoundId } from '../content/assets';
 
 const STEP_SOUNDS: SoundId[] = ['stepGrass', 'stepWood', 'stepDirt', 'stepMud'];
-const SKIN: Record<number, number> = { [Kind.Whisperer]: 0x8e877c, [Kind.Mute]: 0x5a524a, [Kind.Echo]: 0x7a8682, [Kind.Apparition]: 0x101010 };
+const SKIN: Record<number, number> = { [Kind.Whisperer]: 0x8e877c, [Kind.Mute]: 0x5a524a, [Kind.Echo]: 0x7a8682, [Kind.Apparition]: 0x101010, [Kind.Unseeing]: 0x7d8a8c };
 
 export interface EventCtx {
   audio: AudioEngine;
@@ -115,8 +115,9 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
       audio.play(STEP_SOUNDS[e.a] ?? 'stepGrass', { x: e.x, z: e.z, vol: 0.32, low: true, reverb: 0.1 });
       break;
     case 'echoStep':
-      // ваши же шаги — с задержкой и чуть ниже
-      audio.play(STEP_SOUNDS[0]!, { x: e.x, z: e.z, vol: 0.55, rate: 0.9, reverb: 0.7 });
+      // a=1 — мокрые шаги Невидевшего; иначе ваши же шаги с задержкой
+      if (e.a === 1) audio.play('stepMud', { x: e.x, z: e.z, vol: 0.7, rate: 0.85, reverb: 0.5 });
+      else audio.play(STEP_SOUNDS[0]!, { x: e.x, z: e.z, vol: 0.55, rate: 0.9, reverb: 0.7 });
       break;
     case 'playerHurt':
       r.hurt = Math.min(1, r.hurt + e.a / 30);
@@ -181,7 +182,9 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
       c.onDawn();
       break;
     case 'alert':
-      audio.play('screech', { x: e.x, z: e.z, vol: 0.7 });
+      // a=1 — Невидевший сорвался с места, когда вы отвернулись: короткий мокрый вдох
+      if (e.a === 1) audio.play('splash', { x: e.x, z: e.z, vol: 0.6, rate: 1.4 });
+      else audio.play('screech', { x: e.x, z: e.z, vol: 0.7 });
       break;
     case 'growl':
       audio.play('growl', { x: e.x, z: e.z, vol: 1 });
@@ -271,6 +274,16 @@ function scare(e: SimEvent, w: World, c: EventCtx): void {
       for (let i = 0; i < 4; i++) audio.play('speakerVoice', { x: e.x, z: e.z, vol: 1.1, bus: 'music', reverb: 0.5, rate: 0.8, delay: i * 3 });
       audio.play('static', { x: e.x, z: e.z, vol: 0.8, bus: 'music', delay: 11.5 });
       break;
+    case 'wet': {
+      // из воды: всплеск, мокрые ладони по доскам, шёпот снизу
+      const p = w.player;
+      audio.play('splash', { x: p.x + 1, z: p.z + 1, vol: 1, rate: 0.7, reverb: 0.5 });
+      for (let i = 0; i < 6; i++) audio.play('scratch', { x: p.x + (Math.random() - 0.5) * 3, z: p.z + (Math.random() - 0.5) * 3, vol: 0.7, rate: 0.6, delay: 0.2 + i * 0.18 });
+      audio.play('whisper', { x: p.x, z: p.z + 1, vol: 1, rate: 0.75, delay: 0.3 });
+      r.glitch = Math.max(r.glitch, 0.6);
+      vibrate([20, 80, 20, 80, 20]);
+      break;
+    }
     case 'knockBack':
       // из-за двери отвечают тем же ритмом, только медленнее
       audio.play('knock', { x: e.x, z: e.z, vol: 1.1, rate: 0.72, reverb: 0.5 });
@@ -295,8 +308,11 @@ function scare(e: SimEvent, w: World, c: EventCtx): void {
       r.glitch = 1;
       r.flashFx = c.reduceFlashes ? 0.1 : 0.45;
       audio.play('sting', { vol: 0.35 + 0.55 * c.scare, reverb: 0.2 });
+      audio.play('scream', { vol: 0.3 + 0.6 * c.scare, reverb: 0.25 });
       // второй удар — когда игрок уже выдохнул
-      audio.play('screech', { vol: 0.5 + 0.5 * c.scare, delay: 0.78, rate: 0.8 });
+      audio.play('scream', { vol: 0.4 + 0.6 * c.scare, delay: 0.82, rate: 0.85 });
+      audio.play('slam', { vol: 0.8, delay: 0.82 });
+      r.addTrauma(1);
       vibrate([140, 40, 60, 300, 120]);
       break;
   }

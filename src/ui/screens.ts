@@ -5,7 +5,8 @@ import { h, show } from './dom';
 export interface ScreenHandlers {
   onTap: () => void;
   onAcceptDisclaimer: () => void;
-  onStart: () => void;
+  onStart: (night: number) => void;
+  onNext: () => void;
   onResume: () => void;
   onRetry: () => void;
   onToTitle: () => void;
@@ -26,7 +27,13 @@ export class Screens {
   private readonly loadingBar: HTMLElement;
   private readonly journal: HTMLElement;
   private readonly dawnStats: HTMLElement;
+  private readonly dawnTitle: HTMLElement;
+  private readonly dawnSub: HTMLElement;
+  private readonly dawnNext: HTMLButtonElement;
+  private readonly nightMenu: HTMLElement;
   private readonly noteModal: HTMLElement;
+  private readonly beast: HTMLElement;
+  private beastTimer = 0;
   private readonly noteText: HTMLElement;
   private onNoteClose: () => void = () => undefined;
   private settingsBack: ScreenId = 'title';
@@ -73,7 +80,7 @@ export class Screens {
     h('div', 'logo', t('ui.title'), title);
     h('div', 'sub', t('ui.subtitle'), title);
     const menu = h('div', 'menu', undefined, title);
-    this.button(menu, 'ui.start', () => handlers.onStart());
+    this.nightMenu = h('div', 'menu nights', undefined, menu);
     this.button(menu, 'ui.settings', () => this.openSettings('title'));
     h('div', 'small foot', t('ui.credits'), title);
 
@@ -98,10 +105,11 @@ export class Screens {
     this.button(dm, 'ui.toTitle', () => handlers.onToTitle());
 
     const dawn = this.screen('dawn');
-    h('div', 'logo', t('dawn.title'), dawn);
-    h('div', 'sub', t('dawn.sub'), dawn);
+    this.dawnTitle = h('div', 'logo', t('dawn.title'), dawn);
+    this.dawnSub = h('div', 'sub', t('dawn.sub'), dawn);
     this.dawnStats = h('div', 'small', '', dawn);
     const dwm = h('div', 'menu', undefined, dawn);
+    this.dawnNext = this.button(dwm, 'ui.next', () => handlers.onNext());
     this.button(dwm, 'ui.retry', () => handlers.onRetry());
     this.button(dwm, 'ui.toTitle', () => handlers.onToTitle());
 
@@ -114,6 +122,9 @@ export class Screens {
       show(this.noteModal, false);
       this.onNoteClose();
     });
+
+    // карточка бестиария (справа от витрины существа)
+    this.beast = h('div', 'beast hidden', undefined, parent);
 
     // окно «доступно обновление» — поверх меню, не поверх игры
     this.updateModal = h('div', 'update-modal hidden', undefined, parent);
@@ -163,14 +174,73 @@ export class Screens {
     this.loadingBar.style.transform = `scaleX(${frac.toFixed(3)})`;
   }
 
+  /** Стоп-кадр: имя, описание и совет печатаются, как на машинке. */
+  showBeast(name: string, desc: string, tip: string, onClose: () => void): void {
+    const el = this.beast;
+    el.textContent = '';
+    const card = h('div', 'beast-card', undefined, el);
+    h('div', 'beast-tag', t('ui.new'), card);
+    const nm = h('div', 'beast-name', '', card);
+    const ds = h('div', 'beast-desc', '', card);
+    const tp = h('div', 'beast-tip', '', card);
+    const hint = h('div', 'beast-hint', t('ui.continue'), card);
+    hint.style.opacity = '0';
+    show(el, true);
+    const parts: [HTMLElement, string][] = [[nm, name], [ds, desc], [tp, tip]];
+    let pi = 0;
+    let ci = 0;
+    clearInterval(this.beastTimer);
+    const started = performance.now();
+    this.beastTimer = window.setInterval(() => {
+      const part = parts[pi];
+      if (!part) {
+        clearInterval(this.beastTimer);
+        hint.style.opacity = '1';
+        return;
+      }
+      ci += pi === 0 ? 1 : 3;
+      part[0].textContent = part[1].slice(0, ci);
+      if (ci >= part[1].length) {
+        pi++;
+        ci = 0;
+      }
+    }, 28);
+    const close = (e: Event): void => {
+      e.stopPropagation();
+      // не даём пролистнуть случайным касанием в первые полторы секунды
+      if (performance.now() - started < 1500) return;
+      clearInterval(this.beastTimer);
+      el.removeEventListener('pointerdown', close);
+      show(el, false);
+      onClose();
+    };
+    el.addEventListener('pointerdown', close);
+  }
+
   showNote(text: string, onClose: () => void): void {
     this.noteText.textContent = text;
     this.onNoteClose = onClose;
     show(this.noteModal, true);
   }
 
-  setDawnStats(text: string): void {
-    this.dawnStats.textContent = text;
+  setDawn(title: StrKey, sub: StrKey, stats: string, hasNext: boolean): void {
+    this.dawnTitle.textContent = t(title);
+    this.dawnSub.textContent = t(sub);
+    this.dawnStats.textContent = stats;
+    show(this.dawnNext, hasNext);
+  }
+
+  /** Список ночей на титуле: открытые — кнопки, закрытые — подпись. */
+  setNights(titles: readonly StrKey[], unlocked: number): void {
+    this.nightMenu.textContent = '';
+    titles.forEach((key, i) => {
+      if (i < unlocked) this.button(this.nightMenu, key, () => this.h.onStart(i));
+      else {
+        const b = h('div', 'mbtn locked', undefined, this.nightMenu);
+        h('div', '', t(key), b);
+        h('div', 'small', t('night.locked'), b);
+      }
+    });
   }
 
   /** Журнал в паузе: Наказ (нарушенные зачёркнуты), прочитанное, услышанное в тишине. */

@@ -4,7 +4,7 @@ import type { World } from '../sim/world';
 import { WORLD, heightAt } from '../proc/terrain';
 import type { TextureSet } from './textures';
 import { creature } from './materials';
-import { crateGeometry, dynamiteGeometry, faceGeometry, humanoidGeometry, muteGeometry, whispererGeometry } from './models';
+import { crateGeometry, dynamiteGeometry, faceGeometry, humanoidGeometry, muteGeometry, unseeingGeometry, whispererGeometry } from './models';
 
 interface Herd {
   mesh: THREE.InstancedMesh;
@@ -45,7 +45,8 @@ export class ActorsView {
   private readonly crates: THREE.InstancedMesh;
   private readonly longCrates: THREE.InstancedMesh;
   private readonly dynamite: THREE.InstancedMesh;
-  readonly face: THREE.Mesh;
+  readonly face: THREE.Group;
+  readonly faceJaw: THREE.Mesh;
   /** Янтарные искры у того, что стоит осмотреть. */
   private readonly glints: THREE.InstancedMesh;
   private readonly phases = new Map<number, number>();
@@ -73,6 +74,7 @@ export class ActorsView {
         4,
         false,
       ),
+      [Kind.Unseeing]: herd(unseeingGeometry(), skin(1.5), 24),
     };
     this.root.add(this.player.mesh);
     for (const h of Object.values(this.herds)) this.root.add(h.mesh);
@@ -97,7 +99,12 @@ export class ActorsView {
 
     const faceMat = new THREE.MeshBasicMaterial({ vertexColors: true, map: tex.skin, fog: false });
     faceMat.color.setScalar(1.15);
-    this.face = new THREE.Mesh(faceGeometry(), faceMat);
+    const fg = faceGeometry();
+    this.face = new THREE.Group();
+    this.face.add(new THREE.Mesh(fg.head, faceMat));
+    this.faceJaw = new THREE.Mesh(fg.jaw, faceMat);
+    this.faceJaw.position.set(0, -0.17, -0.02);
+    this.face.add(this.faceJaw);
     this.face.visible = false;
   }
 
@@ -114,7 +121,7 @@ export class ActorsView {
     commit(this.player);
 
     // существа
-    const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
     for (const e of w.enemies) {
       if (!e.active) {
         this.phases.delete(e.id);
@@ -147,6 +154,12 @@ export class ActorsView {
         fade = e.litAny ? 1 : dist < 3.5 ? 0.5 : 0.18;
         rim = 1;
         glitch = 0.04;
+      } else if (e.kind === Kind.Unseeing) {
+        // под взглядом — статуя: ни шага, ни дрожи
+        stride = 2.6;
+        amp = e.state === 1 ? 0 : 0.8;
+        rim = Math.max(rim, 0.35);
+        lean = e.state === 1 ? 0 : 0.18;
       } else if (e.kind === Kind.Apparition) {
         amp = 0;
         fade = Math.min(1, e.t * 0.6) * 0.95;
@@ -182,8 +195,9 @@ export class ActorsView {
     // непрочитанные записки в открытых домах
     let ng = 0;
     for (const it of w.interactables) {
-      if (it.kind !== 'note' || !it.enabled || w.notesRead.includes(it.id)) continue;
-      if (!w.doorOpen[it.house]) continue;
+      const isNote = it.kind === 'note' && !w.notesRead.includes(it.id);
+      if (!it.enabled || !(isNote || it.glint)) continue;
+      if (it.house >= 0 && !w.doorOpen[it.house]) continue;
       const pulse = 0.8 + Math.sin(this.time * 4 + it.x) * 0.35;
       m4.compose(v.set(it.x, heightAt(it.x, it.z) + 1.0 + Math.sin(this.time * 2) * 0.05, it.z), q.setFromAxisAngle(UP, this.time * 1.5), sc.set(pulse, pulse * 1.4, pulse));
       if (ng < 16) this.glints.setMatrixAt(ng++, m4);

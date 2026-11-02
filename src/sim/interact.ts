@@ -1,6 +1,5 @@
 import type { World } from './world';
 import type { InputFrame } from './types';
-import { interiorOf } from '../content/interiors';
 
 /**
  * Взаимодействия: ближайший активный объект в радиусе — «в фокусе».
@@ -21,9 +20,10 @@ export function updateInteract(w: World, inp: InputFrame, dt: number): void {
   for (let i = 0; i < w.interactables.length; i++) {
     const it = w.interactables[i]!;
     if (!it.enabled) continue;
-    if (it.kind === 'switch' && w.deadAir) continue;
-    // записки видны только изнутри дома
-    if (it.kind === 'note' && w.playerHouse !== it.house) continue;
+    // рубильник бессмысленен в мёртвом эфире
+    if (it.id === 'switch' && w.deadAir) continue;
+    // записки и вещи в домах — только изнутри
+    if ((it.kind === 'note' || (it.kind === 'custom' && it.house >= 0)) && w.playerHouse !== it.house) continue;
     const d = Math.hypot(p.x - it.x, p.z - it.z);
     if (d < it.r && d < bestD) {
       best = i;
@@ -53,6 +53,7 @@ export function updateInteract(w: World, inp: InputFrame, dt: number): void {
 function trigger(w: World, index: number): void {
   const it = w.interactables[index]!;
   const p = w.player;
+  const night = w.cfg.night;
   switch (it.kind) {
     case 'note': {
       const first = !w.notesRead.includes(it.id);
@@ -60,8 +61,8 @@ function trigger(w: World, index: number): void {
       w.flags.add(it.id);
       w.emit('note', it.x, 1, it.z, 0, 0, 0, it.key);
       if (first) {
-        const def = interiorOf(it.house)?.notes.find((n) => `note:${n.id}` === it.id);
-        // эффекты «после прочтения» — симуляция стоит, пока открыта записка, поэтому они случатся сразу после неё
+        const def = night.houses.find((h) => h.house === it.house)?.notes.find((n) => `note:${n.id}` === it.id);
+        // эффекты «после прочтения» случатся сразу после закрытия записки (симуляция стоит, пока её читают)
         if (def?.after) w.later(0.25, () => w.narrative.run(def.after!));
       }
       break;
@@ -71,19 +72,20 @@ function trigger(w: World, index: number): void {
       it.used = true;
       w.emit('knock', it.x, 1, it.z, it.house);
       w.noise(it.x, it.z, 0.25);
-      p.sanity = Math.max(0, p.sanity - 5);
-      w.flags.add('broke:2');
-      const def = interiorOf(it.house);
+      if (night.knockRule > 0) {
+        p.sanity = Math.max(0, p.sanity - 5);
+        w.flags.add(`broke:${night.knockRule}`);
+      }
+      const def = night.houses.find((h) => h.house === it.house);
       if (def) w.later(1.6, () => w.narrative.run(def.knock));
       break;
     }
-    case 'pier':
-      it.enabled = false;
-      it.used = true;
-      w.narrative.run(w.cfg.night.pierCall);
-      break;
-    case 'switch':
-      w.narrative.run(w.cfg.night.switchOff);
+    case 'custom':
+      if (it.once) {
+        it.enabled = false;
+        it.used = true;
+      }
+      w.narrative.run(it.effects);
       break;
   }
 }

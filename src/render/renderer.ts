@@ -8,6 +8,7 @@ import { ActorsView } from './actors';
 import { Fx } from './fx';
 import { PostPass } from './post';
 import { shared } from './materials';
+import { Showcase } from './showcase';
 
 export interface CameraShot {
   pos: THREE.Vector3;
@@ -40,7 +41,15 @@ export class GameRenderer {
   private readonly moon: THREE.DirectionalLight;
   /** Кат-сцена: чуть больше лунного света и реже туман — зрителю нужно видеть место. */
   cinematic = false;
+  /** Густота тумана текущей ночи. */
+  baseFog = 0.03;
   private rt: THREE.WebGLRenderTarget;
+  readonly showcase: Showcase;
+  /** 0..1 — проявление стоп-кадра. */
+  private showT = 0;
+  private showOn = false;
+  /** Вспышка негатива при скримере (отключается «меньше вспышек»). */
+  invertFlash = true;
   private quality: number;
   private resIndex = 2;
   private frameMs = 16;
@@ -58,6 +67,7 @@ export class GameRenderer {
   flashlightOn = true;
   /** Время от начала скримера (−1 — нет). Лицо → тьма → лицо ещё раз: второй удар бьёт сильнее первого. */
   private faceT = -1;
+  private faceFrame = -1;
   private flicker = 0;
 
   constructor(canvas: HTMLCanvasElement, w: World, tex: TextureSet, quality: number) {
@@ -68,6 +78,7 @@ export class GameRenderer {
     this.gl.shadowMap.type = THREE.PCFShadowMap;
     this.gl.outputColorSpace = THREE.SRGBColorSpace;
     this.rt = this.makeTarget(640, 360);
+    this.showcase = new Showcase(tex, this.rt.texture.type);
 
     this.fog = new THREE.FogExp2(COLORS.fog, 0.03);
     this.scene.fog = this.fog;
@@ -100,7 +111,7 @@ export class GameRenderer {
     this.fx.syncFog(this.fog);
     this.scene.add(this.fx.root);
     this.camera.add(this.actors.face);
-    this.actors.face.position.set(0, -0.08, -1.6);
+    this.actors.face.position.set(0, -0.08, -1.7);
     this.scene.add(this.camera);
     this.resIndex = 2;
   }
@@ -115,6 +126,21 @@ export class GameRenderer {
       stencilBuffer: false,
     });
     return rt;
+  }
+
+  /** Стоп-кадр: замораживаем последний кадр и показываем существо. */
+  startShowcase(kind: number): void {
+    this.showOn = true;
+    this.showT = 0;
+    this.showcase.start(kind, this.rt.width, this.rt.height);
+  }
+
+  stopShowcase(): void {
+    this.showOn = false;
+  }
+
+  get showcaseActive(): boolean {
+    return this.showOn || this.showT > 0;
   }
 
   setQuality(q: number): void {
@@ -198,7 +224,7 @@ export class GameRenderer {
     this.aura.intensity = this.flashlightOn ? 5 : 0;
     this.hemi.intensity = damp(this.hemi.intensity, this.cinematic ? 2.4 : 0.85, 2, dt);
     this.moon.intensity = damp(this.moon.intensity, this.cinematic ? 0.9 : 0.32, 2, dt);
-    this.fog.density = damp(this.fog.density, this.cinematic ? 0.016 : 0.03, 2, dt);
+    this.fog.density = damp(this.fog.density, this.cinematic ? this.baseFog * 0.55 : this.baseFog, 2, dt);
 
     // фонарь на столбе гаснет в мёртвом эфире
     const lampOn = !w.deadAir;
@@ -240,17 +266,28 @@ export class GameRenderer {
 
     // скример
     let faceOn = false;
+    let invert = 0;
     if (this.faceT >= 0) {
       this.faceT += dt;
       const f = this.faceT;
-      faceOn = f < 0.5 || (f > 0.78 && f < 0.92);
-      if (f > 1.1) this.faceT = -1;
-      // рывок навстречу камере + дрожь; второй раз — уже вплотную
-      this.actors.face.position.x = (Math.random() - 0.5) * 0.05;
-      this.actors.face.position.z = f < 0.5 ? -1.6 + Math.min(0.45, f * 1.6) : -1.05;
-      this.actors.face.rotation.z = (Math.random() - 0.5) * 0.25;
+      // удар → темнота → второй удар вплотную, с распахнутой челюстью
+      faceOn = f < 0.55 || (f > 0.82 && f < 1.0);
+      if (f > 1.2) this.faceT = -1;
+      const face = this.actors.face;
+      // рывки, как в покадровой анимации: поза меняется скачком, а не плавно
+      const frame = Math.floor(f * 14);
+      if (frame !== this.faceFrame) {
+        this.faceFrame = frame;
+        face.rotation.set((Math.random() - 0.5) * 0.25, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.5);
+        face.position.x = (Math.random() - 0.5) * 0.12;
+        face.position.y = -0.08 + (Math.random() - 0.5) * 0.08;
+      }
+      face.position.z = f < 0.55 ? -1.7 + Math.min(0.55, f * 2.2) : -0.95;
+      this.actors.faceJaw.rotation.x = f < 0.55 ? Math.min(0.9, f * 3) : 1.25;
+      invert = this.invertFlash && (f < 0.05 || (f > 0.82 && f < 0.86)) ? 1 : 0;
     }
     this.actors.face.visible = faceOn;
+    this.post.u.uInvert.value = invert;
     // дома: снять крышу над тем, где игрок; двери; свет внутри
     const v = this.view;
     for (let i = 0; i < v.roofs.length; i++) v.roofs[i]!.visible = w.playerHouse !== i;
@@ -287,10 +324,25 @@ export class GameRenderer {
     u.uFade.value = this.fade;
     u.uDeadAir.value = w.deadAir ? 1 : 0;
 
-    this.gl.setRenderTarget(this.rt);
-    this.gl.render(this.scene, this.camera);
+    // стоп-кадр: основная сцена не перерисовывается (кадр «замёрз»), рисуется витрина
+    this.showT = this.showOn ? Math.min(1, this.showT + dt * 2.2) : Math.max(0, this.showT - dt * 3);
+    if (this.showT > 0) {
+      this.showcase.update(dt);
+      this.gl.setRenderTarget(this.showcase.rt);
+      this.gl.setClearColor(0x000000, 0);
+      this.gl.clear();
+      this.gl.render(this.showcase.scene, this.showcase.camera);
+      this.gl.setClearColor(0x000000, 1);
+    }
+    if (!this.showOn) {
+      this.gl.setRenderTarget(this.rt);
+      this.gl.render(this.scene, this.camera);
+    }
     this.gl.setRenderTarget(null);
     u.tScene.value = this.rt.texture;
+    u.tShow.value = this.showcase.rt.texture;
+    u.uShow.value = this.showT;
+    u.uGlitch.value = Math.max(u.uGlitch.value, this.showOn && this.showT < 0.5 ? 0.9 - this.showT : 0);
     this.gl.render(this.post.scene, this.post.camera);
 
     // динамическое разрешение

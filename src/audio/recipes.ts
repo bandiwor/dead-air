@@ -706,4 +706,57 @@ export const RECIPES: Record<ProcSoundId, Recipe> = {
       g.gain.setTargetAtTime(0.0001, d - 0.05, 0.01);
     },
   },
+  tapestop: {
+    // «плёнку остановили»: аккорд и шум падают по высоте до гула
+    dur: () => 1.4,
+    build: (c, o, r) => {
+      const sum = gain(c, 0.0001);
+      const lp = filter(c, 'lowpass', 4000, 1);
+      sweep(lp.frequency, 0, 4000, 120, 0.9);
+      chain(sum, lp, saturator(c, 2), o);
+      for (const f of [220, 261.6, 329.6, 110]) {
+        const so = osc(c, 'sawtooth', f, 0, 1.3);
+        so.frequency.setValueAtTime(f, 0);
+        so.frequency.exponentialRampToValueAtTime(f * 0.12, 0.95);
+        chain(so, gain(c, 0.2), sum);
+      }
+      const n = gain(c, 0.3);
+      chain(noise(c, r, 1.3), filter(c, 'bandpass', 1800, 0.8), n, sum);
+      sum.gain.setValueAtTime(0.0001, 0);
+      sum.gain.linearRampToValueAtTime(0.7, 0.02);
+      sum.gain.setTargetAtTime(0.0001, 0.9, 0.12);
+      // щелчок механизма в конце
+      const k = gain(c);
+      chain(noise(c, r, 0.03), filter(c, 'bandpass', 2600, 6), k, o);
+      perc(k.gain, 1.0, 0.6, 0.0005, 0.02);
+    },
+  },
+  scream: {
+    // нечеловеческий крик: два голоса с быстрым вибрато через форманту «а», перегруз
+    dur: () => 1.5,
+    build: (c, o, r) => {
+      const amp = gain(c, 0.0001);
+      const sat = saturator(c, 6);
+      chain(amp, filter(c, 'highpass', 220), sat, gain(c, 0.6), o);
+      const formants: [number, number][] = [[850, 1], [1250, 0.7], [2600, 0.45], [3400, 0.25]];
+      const voices = [r.range(380, 440), r.range(520, 600)];
+      for (const f0 of voices) {
+        const so = osc(c, 'sawtooth', f0, 0, 1.5);
+        so.frequency.linearRampToValueAtTime(f0 * 1.45, 0.18);
+        so.frequency.linearRampToValueAtTime(f0 * 1.2, 1.3);
+        const vib = osc(c, 'sine', r.range(11, 15), 0, 1.5);
+        const vg = gain(c, f0 * 0.06);
+        chain(vib, vg);
+        vg.connect(so.frequency);
+        for (const [ff, k] of formants) chain(so, filter(c, 'bandpass', ff * r.range(0.95, 1.05), 7), gain(c, k * 0.6), amp);
+      }
+      const br = gain(c, 0.0001);
+      chain(noise(c, r, 1.5), filter(c, 'bandpass', 2400, 1), br, o);
+      ahr(br.gain, 0, 0.35, 0.01, 0.6, 0.6);
+      const rough = gain(c, 0.35);
+      chain(noise(c, r, 1.5), filter(c, 'lowpass', 70), rough);
+      rough.connect(amp.gain);
+      ahr(amp.gain, 0, 0.9, 0.012, 0.75, 0.6);
+    },
+  },
 };

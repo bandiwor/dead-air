@@ -67,3 +67,30 @@ function guessQuality(): number {
   if (mem >= 8 && cores >= 8) return 2;
   return 1;
 }
+
+/** Прогресс: сколько ночей открыто и каких существ игрок уже видел (для стоп-кадра бестиария). */
+export interface Progress {
+  unlocked: number;
+  seen: number[];
+}
+
+const PKEY = 'dead-air:progress';
+
+export function loadProgress(): Progress {
+  try {
+    const o = JSON.parse(localStorage.getItem(PKEY) ?? '{}') as Record<string, unknown>;
+    const unlocked = typeof o.unlocked === 'number' && Number.isInteger(o.unlocked) ? Math.min(20, Math.max(1, o.unlocked)) : 1;
+    const seen = Array.isArray(o.seen) ? o.seen.filter((v): v is number => Number.isInteger(v) && v >= 0 && v < 32) : [];
+    return { unlocked, seen };
+  } catch {
+    return { unlocked: 1, seen: [] };
+  }
+}
+
+export function saveProgress(p: Progress): void {
+  try {
+    localStorage.setItem(PKEY, JSON.stringify(p));
+  } catch {
+    /* приватный режим */
+  }
+}

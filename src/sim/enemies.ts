@@ -103,9 +103,13 @@ export function updateEnemies(w: World, dt: number): void {
       case Kind.Apparition:
         apparition(w, e, dt);
         break;
+      case Kind.Unseeing:
+        unseeing(w, e, dist, dt);
+        break;
     }
     if (!e.active) continue;
-    e.y = Math.max(heightAt(e.x, e.z), onPierY(e));
+    // фигура «на воде» стоит на поверхности пруда
+    e.y = e.kind === Kind.Apparition && e.delay === 1 ? WORLD.waterLevel : Math.max(heightAt(e.x, e.z), onPierY(e));
   }
 
   separate(w);
@@ -299,8 +303,7 @@ function apparition(w: World, e: Enemy, dt: number): void {
   const p = w.player;
   void dt;
   if (e.state === 1) {
-    // стоит спиной на краю пристани, лицом к воде; от взгляда не исчезает — ждёт, что позовут
-    e.yaw = 0;
+    // стоит спиной (к воде, к стене); от взгляда не исчезает — ждёт, что позовут
     return;
   }
   if (e.state === 3) {
@@ -331,6 +334,37 @@ function apparition(w: World, e: Enemy, dt: number): void {
     w.emit('vanish', e.x, e.y, e.z, e.kind, 0);
     e.active = false;
   }
+}
+
+/**
+ * Невидевший: двигается, только когда на него не смотрят. В луче фонаря — каменеет.
+ * Механика из Наказа: «если кто-то закрыл лицо руками — не отворачивайтесь».
+ */
+function unseeing(w: World, e: Enemy, dist: number, dt: number): void {
+  const p = w.player;
+  const seen = e.litTorch && dist < 15;
+  if (seen) {
+    e.vx = e.vz = 0;
+    e.kx *= Math.exp(-6 * dt);
+    e.kz *= Math.exp(-6 * dt);
+    e.state = 1;
+    return;
+  }
+  if (e.state === 1) {
+    // сорвался с места, как только вы отвели взгляд
+    e.state = 0;
+    if (dist < 10) w.emit('alert', e.x, e.y, e.z, 1);
+  }
+  let tx = p.x;
+  let tz = p.z;
+  [tx, tz] = route(w, e, tx, tz);
+  moveToward(w, e, tx, tz, e.speed, dt);
+  e.stepAcc += e.speed * dt;
+  if (e.stepAcc > 1.3) {
+    e.stepAcc = 0;
+    if (dist < 14) w.emit('echoStep', e.x, e.y, e.z, 1);
+  }
+  contactAttack(w, e, dist, ENEMIES[Kind.Unseeing].dmg, ENEMIES[Kind.Unseeing].atkCd, 5);
 }
 
 /**

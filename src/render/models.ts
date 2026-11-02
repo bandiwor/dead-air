@@ -482,6 +482,26 @@ export function humanoidGeometry(s: HumanoidSpec): THREE.BufferGeometry {
   return b.build();
 }
 
+/** Невидевший: закрыл лицо обеими руками; мокрая одежда, кожа цвета речной воды. */
+export function unseeingGeometry(): THREE.BufferGeometry {
+  const b = new Builder(75);
+  const skin = 0x7d8a8c;
+  const cloth = 0x2a3034;
+  const hip = 0.9;
+  for (const side of [-1, 1]) {
+    b.box(0.16, 0.88, 0.17, { pos: [side * 0.11, hip - 0.44, 0], color: cloth, limb: [side * 0.11, hip, 0, side > 0 ? 0 : Math.PI], limbW: 1 });
+    // плечо → локоть вперёд-вверх → ладонь на лице
+    b.box(0.11, 0.36, 0.12, { pos: [side * 0.27, 1.4, 0.1], rot: [-0.9, 0, side * 0.25], color: cloth });
+    b.box(0.1, 0.34, 0.11, { pos: [side * 0.12, 1.62, 0.24], rot: [-0.25, 0, side * -0.6], color: skin });
+    b.box(0.13, 0.17, 0.05, { pos: [side * 0.055, 1.72, 0.17], rot: [0, 0, side * 0.15], color: skin, jitter: 0.2 });
+  }
+  b.box(0.46, 0.66, 0.26, { pos: [0, 1.22, 0], color: cloth, jitter: 0.15 });
+  b.box(0.25, 0.3, 0.26, { pos: [0, 1.72, 0.0], rot: [0.15, 0, 0], color: skin });
+  // мокрые пряди на затылке
+  for (let i = 0; i < 5; i++) b.box(0.04, 0.32, 0.03, { pos: [-0.1 + i * 0.05, 1.62, -0.13], color: 0x101414 });
+  return b.build();
+}
+
 /** Шептун: ползущее существо на четырёх длинных конечностях, голова у земли. */
 export function whispererGeometry(): THREE.BufferGeometry {
   const b = new Builder(71);
@@ -522,17 +542,37 @@ export function muteGeometry(): THREE.BufferGeometry {
   return b.build();
 }
 
-/** Лицо для скримера: вытянутая бледная голова, пустые глазницы, рот до подбородка. */
-export function faceGeometry(): THREE.BufferGeometry {
+/**
+ * Лицо для скримера: голова и отдельная челюсть (она отвисает). Асимметрия, пустые глазницы
+ * со зрачками-точками, мокрые пряди — «почти лицо», которое мозг не может принять.
+ */
+export function faceGeometry(): { head: THREE.BufferGeometry; jaw: THREE.BufferGeometry } {
   const b = new Builder(91);
-  // асимметрия — главный источник «зловещей долины»: почти лицо, но неправильное
-  b.box(0.5, 0.9, 0.42, { rot: [0, 0, 0.05], color: 0x9c968a, jitter: 0.35 });
+  b.box(0.5, 0.62, 0.42, { pos: [0, 0.12, 0], rot: [0, 0, 0.05], color: 0x9c968a, jitter: 0.35 });
   b.box(0.46, 0.2, 0.4, { pos: [0.02, 0.48, -0.02], rot: [0, 0, -0.12], color: 0x8a8478, jitter: 0.3 });
-  b.box(0.15, 0.2, 0.05, { pos: [-0.12, 0.08, 0.215], rot: [0, 0, 0.18], color: 0x030202 });
-  b.box(0.1, 0.13, 0.05, { pos: [0.13, 0.15, 0.215], rot: [0, 0, -0.1], color: 0x030202 });
-  b.box(0.035, 0.12, 0.05, { pos: [0.0, -0.02, 0.215], color: 0x2a2220 });
-  b.box(0.13, 0.46, 0.05, { pos: [0.03, -0.26, 0.215], rot: [0, 0, -0.16], color: 0x080303 });
-  for (let i = 0; i < 6; i++) b.box(0.018, 0.04 + (i % 3) * 0.015, 0.02, { pos: [-0.03 + i * 0.022, -0.05 - i * 0.006, 0.236], color: 0xb0a890 });
-  b.box(0.06, 0.14, 0.05, { pos: [0.2, -0.32, 0.2], rot: [0, 0, 0.5], color: 0x3a1010 });
-  return b.build();
+  // глазницы разной высоты и размера
+  b.box(0.16, 0.2, 0.05, { pos: [-0.12, 0.16, 0.215], rot: [0, 0, 0.18], color: 0x020101 });
+  b.box(0.11, 0.14, 0.05, { pos: [0.13, 0.22, 0.215], rot: [0, 0, -0.1], color: 0x020101 });
+  // зрачки-точки: смотрят в разные стороны
+  b.box(0.022, 0.022, 0.02, { pos: [-0.1, 0.13, 0.245], color: 0xf0ece0 });
+  b.box(0.018, 0.018, 0.02, { pos: [0.15, 0.24, 0.245], color: 0xf0ece0 });
+  // потёки из глаз
+  b.box(0.025, 0.22, 0.02, { pos: [-0.14, -0.02, 0.232], color: 0x2a0606 });
+  b.box(0.02, 0.16, 0.02, { pos: [0.12, 0.08, 0.232], color: 0x2a0606 });
+  b.box(0.035, 0.1, 0.05, { pos: [0.0, 0.0, 0.215], color: 0x2a2220 });
+  // верхние зубы
+  for (let i = 0; i < 7; i++) b.box(0.02, 0.05 + (i % 3) * 0.02, 0.02, { pos: [-0.075 + i * 0.025, -0.16, 0.225], color: 0xb0a890 });
+  b.box(0.2, 0.06, 0.05, { pos: [0, -0.13, 0.205], color: 0x080303 });
+  // мокрые пряди — висят по бокам до подбородка и ниже
+  for (let i = 0; i < 9; i++) {
+    const side = i < 5 ? -1 : 1;
+    const k = i % 5;
+    b.box(0.035, 0.7 + k * 0.08, 0.035, { pos: [side * (0.2 + k * 0.025), 0.05 - k * 0.04, 0.1 + k * 0.02], rot: [0, 0, side * 0.08], color: 0x0c0d0d });
+  }
+  const jaw = new Builder(92);
+  // челюсть: петля сверху-сзади (ноль координат), рот — чёрная пасть
+  jaw.box(0.4, 0.2, 0.38, { pos: [0, -0.1, 0.02], color: 0x948e82, jitter: 0.35 });
+  jaw.box(0.2, 0.08, 0.06, { pos: [0, -0.02, 0.2], color: 0x060202 });
+  for (let i = 0; i < 6; i++) jaw.box(0.02, 0.05, 0.02, { pos: [-0.06 + i * 0.025, 0.02, 0.21], color: 0xa89f88 });
+  return { head: b.build(), jaw: jaw.build() };
 }

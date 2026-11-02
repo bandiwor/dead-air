@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { World } from '../sim/world';
-import { NIGHT1 } from '../content/night1';
+import { NIGHTS } from '../content/nights';
 import { emptyInput } from '../sim/types';
 import { hashString } from '../core/rng';
 import { AudioEngine } from '../audio/engine';
@@ -9,18 +9,19 @@ import { GameRenderer } from '../render/renderer';
 import { loadTextures, type TextureSet } from '../render/textures';
 import { Input } from '../platform/input';
 import { enterImmersive, isTouch, onHidden, setVibration } from '../platform/native';
-import { loadSettings, saveSettings, type Settings } from '../platform/storage';
+import { loadProgress, loadSettings, saveProgress, saveSettings, type Settings, type Progress } from '../platform/storage';
 import { Hud } from '../ui/hud';
 import { Screens } from '../ui/screens';
-import { Cutscene, DAWN, INTRO, type Shot } from './cutscene';
+import { Cutscene, type Shot } from './cutscene';
 import type { StrKey } from '../i18n';
 import { doorOf } from '../proc/layout';
 import { WORLD } from '../proc/terrain';
 import { Updater, type UpdateStatus } from '../platform/updates';
 import { t } from '../i18n';
 import { handleEvents, nearestEnemy } from './events';
+import { BESTIARY } from '../content/bestiary';
 
-type Mode = 'boot' | 'loading' | 'title' | 'intro' | 'play' | 'note' | 'pause' | 'dying' | 'dead' | 'dawn' | 'dawnScreen';
+type Mode = 'boot' | 'loading' | 'title' | 'intro' | 'play' | 'note' | 'beast' | 'pause' | 'dying' | 'dead' | 'dawn' | 'dawnScreen';
 
 const STEP = 1 / 60;
 const TEX_SEED = 1953;
@@ -44,7 +45,9 @@ export class Game {
   private last = 0;
   private attempt = 0;
   private cut: Cutscene | null = null;
-  private introSeen = false;
+  private readonly introSeen = new Set<number>();
+  private nightIdx = 0;
+  private progress: Progress = loadProgress();
   private menuT = 0;
   private modeT = 0;
   private readonly frame = emptyInput();
@@ -74,7 +77,14 @@ export class Game {
         saveSettings(this.settings);
         void this.load().catch((e: unknown) => this.fail(e));
       },
-      onStart: () => this.startNight(),
+      onStart: (n: number) => {
+        this.nightIdx = n;
+        this.startNight();
+      },
+      onNext: () => {
+        this.nightIdx = Math.min(NIGHTS.length - 1, this.nightIdx + 1);
+        this.startNight();
+      },
       onResume: () => this.resume(),
       onRetry: () => this.startNight(),
       onToTitle: () => this.toTitle(),
@@ -87,6 +97,7 @@ export class Game {
       onUpdateApply: () => void this.updater.apply(),
     });
     this.world = this.makeWorld();
+    this.refreshNights();
     this.screens.open('boot');
     this.updater.onChange = (st) => this.onUpdateStatus(st);
     this.onUpdateStatus(this.updater.status);
@@ -107,7 +118,8 @@ export class Game {
   }
 
   private makeWorld(): World {
-    return new World({ seed: hashString(`night1:${this.attempt}:${Date.now() & 0xffff}`), night: NIGHT1, scare: this.settings.scare });
+    const night = NIGHTS[this.nightIdx]!;
+    return new World({ seed: hashString(`${night.id}:${this.attempt}:${Date.now() & 0xffff}`), night, scare: this.settings.scare });
   }
 
   private async onBootTap(): Promise<void> {
@@ -140,6 +152,7 @@ export class Game {
     await new Promise((r) => setTimeout(r, 0));
     this.renderer = new GameRenderer(this.canvas, this.world, tex, this.settings.quality);
     this.renderer.fx.flashScale = this.settings.reduceFlashes ? 0.35 : 1;
+    this.renderer.invertFlash = !this.settings.reduceFlashes;
     this.renderer.resize();
     this.audio.setVolume(this.settings.volume);
     this.amb.start();
@@ -157,6 +170,7 @@ export class Game {
     this.audio.setVolume(s.volume);
     if (this.renderer) {
       this.renderer.fx.flashScale = s.reduceFlashes ? 0.35 : 1;
+      this.renderer.invertFlash = !s.reduceFlashes;
       if (qualityChanged) {
         this.renderer.setQuality(s.quality);
         this.renderer.resize();
@@ -201,10 +215,11 @@ export class Game {
     this.renderer.hurt = 0;
     this.amb.setRadio(true);
     void enterImmersive();
-    if (!this.introSeen) {
-      this.introSeen = true;
+    this.renderer.baseFog = NIGHTS[this.nightIdx]!.fog;
+    if (!this.introSeen.has(this.nightIdx)) {
+      this.introSeen.add(this.nightIdx);
       this.mode = 'intro';
-      this.cut = new Cutscene(INTRO);
+      this.cut = new Cutscene(NIGHTS[this.nightIdx]!.intro);
       this.cut.onLine = (k) => this.hud.line(k, 0);
       this.letterbox(true);
       this.hud.setVisible(true);
@@ -229,18 +244,59 @@ export class Game {
   /** Журнал: какие пункты Наказа нарушены, что прочитано, что услышано в тишине. */
   private refreshJournal(): void {
     const w = this.world;
-    const rules = NIGHT1.rules.map((key, i) => ({ key, broken: w.flags.has(`broke:${i + 1}`) }));
+    const night = w.cfg.night;
+    const rules = night.rules.map((key, i) => ({ key, broken: w.flags.has(`broke:${i + 1}`) }));
     const notes = w.notesRead
       .map((id) => w.interactables.find((it) => it.id === id)?.key)
       .filter((k): k is string => !!k) as StrKey[];
-    const heard = NIGHT1.fragments.slice(0, w.fragments);
+    const heard = night.fragments.slice(0, w.fragments);
     this.screens.setJournal(rules, notes, heard);
+  }
+
+  private refreshNights(): void {
+    this.screens.setNights(NIGHTS.map((n) => n.titleKey), this.progress.unlocked);
   }
 
   private brokenCount(): number {
     let n = 0;
-    for (let i = 1; i <= 5; i++) if (this.world.flags.has(`broke:${i}`)) n++;
+    for (let i = 1; i <= 6; i++) if (this.world.flags.has(`broke:${i}`)) n++;
     return n;
+  }
+
+  /**
+   * Первая встреча с существом — кинематографичный стоп-кадр: кадр замирает,
+   * слева проявляется модель, справа имя, описание и совет. Один раз за всю игру на каждое существо.
+   */
+  private checkBestiary(): void {
+    const w = this.world;
+    const p = w.player;
+    for (const e of w.enemies) {
+      if (!e.active || e.fake || this.progress.seen.includes(e.kind)) continue;
+      const card = BESTIARY[e.kind as keyof typeof BESTIARY];
+      if (!card) continue;
+      const d = Math.hypot(e.x - p.x, e.z - p.z);
+      if (d > 13 || e.fade < 0.6 || !(e.litAny || d < 5)) continue;
+      this.progress.seen.push(e.kind);
+      saveProgress(this.progress);
+      this.mode = 'beast';
+      this.input.enabled = false;
+      this.input.reset();
+      this.renderer?.startShowcase(e.kind);
+      this.hud.root.classList.add('beastmode');
+      this.audio.duck(3);
+      this.audio.play('tapestop', { bus: 'ui', vol: 0.9, reverb: 0.2 });
+      this.audio.play('sting', { bus: 'ui', vol: 0.35, rate: 0.55, delay: 0.35, reverb: 0.4 });
+      this.screens.showBeast(t(card.name), t(card.desc), t(card.tip), () => {
+        this.renderer?.stopShowcase();
+        this.hud.root.classList.remove('beastmode');
+        if (this.mode !== 'beast') return;
+        this.mode = 'play';
+        this.input.enabled = true;
+        this.input.reset();
+        this.acc = 0;
+      });
+      return;
+    }
   }
 
   /** Записка: игра стоит, пока её читают. */
@@ -305,6 +361,7 @@ export class Game {
       }
       if (steps === 6) this.acc = 0;
       r.followCamera(w, dt);
+      if (this.mode === 'play') this.checkBestiary();
     } else if (this.mode === 'intro' || this.mode === 'dawn') {
       const shot = this.cut?.update(dt);
       if (shot) {
@@ -362,8 +419,15 @@ export class Game {
         // концовка зависит от того, искал ли игрок правду: нарушения, записи, услышанное
         const w2 = this.world;
         const truth = this.brokenCount() * 2 + w2.notesRead.length + w2.fragments;
-        const shots: Shot[] = DAWN.map((sh, i) => (i === DAWN.length - 1 && truth >= 5 ? { ...sh, line: 'cut.dawn.3b' } : sh));
-        this.screens.setDawnStats(t('dawn.stats', { r: this.brokenCount(), n: w2.notesRead.length, f: w2.fragments }));
+        const night = w2.cfg.night;
+        const shots: Shot[] = night.dawn.map((sh, i) => (i === night.dawn.length - 1 && truth >= 5 ? { ...sh, line: night.dawnTruth } : sh));
+        // рассвет открывает следующую ночь
+        if (this.progress.unlocked < night.index + 1 && night.index < NIGHTS.length) {
+          this.progress.unlocked = night.index + 1;
+          saveProgress(this.progress);
+          this.refreshNights();
+        }
+        this.screens.setDawn(night.dawnTitle, night.dawnSub, t('dawn.stats', { r: this.brokenCount(), n: w2.notesRead.length, f: w2.fragments }), night.index < NIGHTS.length);
         this.cut = new Cutscene(shots);
         this.cut.onLine = (k) => this.hud.line(k, 0);
         this.cut.start();
@@ -371,7 +435,7 @@ export class Game {
     };
     handleEvents(w, ctx, dt);
 
-    const playing = this.mode === 'play' || this.mode === 'note' || this.mode === 'dying' || this.mode === 'pause';
+    const playing = this.mode === 'play' || this.mode === 'note' || this.mode === 'beast' || this.mode === 'dying' || this.mode === 'pause';
     r.flashlightOn = this.mode !== 'title' && this.mode !== 'loading';
     r.render(w, dt, playing);
     const p = w.player;
@@ -391,7 +455,7 @@ export class Game {
     );
     const ps = r.project(p.x, p.y + 1, p.z);
     this.input.playerScreen = ps;
-    if (this.mode === 'play' || this.mode === 'note' || this.mode === 'intro' || this.mode === 'dawn') {
+    if (this.mode === 'play' || this.mode === 'note' || this.mode === 'beast' || this.mode === 'intro' || this.mode === 'dawn') {
       const door = w.layout.hutDoor;
       let goal: { x: number; y: number } | null = null;
       const m = w.marker;

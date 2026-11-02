@@ -1,4 +1,4 @@
-import type { Beat, Condition, Effect, SpawnAt } from '../content/script';
+import type { AppearAt, Beat, Condition, Effect, SpawnAt } from '../content/script';
 import { interiorOf } from '../content/interiors';
 import { KIND_BY_ID, Kind } from '../content/enemies';
 import { weaponIndex } from '../content/weapons';
@@ -67,6 +67,12 @@ export class Narrative {
     else if ('light' in e) w.setHouseLight(e.light, e.on);
     else if ('deadAir' in e) w.air = 0;
     else if ('flag' in e) w.flags.add(e.flag);
+    else if ('unflag' in e) w.flags.delete(e.unflag);
+    else if ('enable' in e || 'disable' in e) {
+      const id = 'enable' in e ? e.enable : e.disable;
+      const it = w.interactables.find((i) => i.id === id);
+      if (it) it.enabled = 'enable' in e;
+    }
     else if ('sanity' in e) p.sanity = Math.max(0, Math.min(100, p.sanity + e.sanity));
     else if ('fragment' in e) w.addFragment(p.x, p.y + 1, p.z);
     else if ('objective' in e) {
@@ -85,8 +91,6 @@ export class Narrative {
           en.active = false;
         }
       }
-      const pier = w.interactables.find((it) => it.id === 'pier');
-      if (pier) pier.enabled = false;
     } else if ('scare' in e) {
       if (e.scare === 'jumpscare') w.jumpscare();
       else if (e.scare === 'turn') {
@@ -138,18 +142,34 @@ export class Narrative {
    * Явления. Состояния призрака: 0 — исчезает от взгляда; 1 — стоит спиной (пристань);
    * 3 — обернулся; 2 — за спиной: стоит, пока не посмотришь, и тогда — лицо.
    */
-  private appear(at: 'pier' | 'behind' | 'pole' | 'window', house?: number): void {
+  private appear(at: AppearAt, house?: number): void {
     const w = this.w;
     const p = w.player;
-    if (at === 'pier') {
-      const e = spawnEnemy(w, Kind.Apparition, WORLD.pier.x1 - 0.5, (WORLD.pier.z0 + WORLD.pier.z1) / 2);
+    if (at === 'pier' || at === 'water') {
+      // стоит спиной, лицом к воде; на воде — посреди Глядня
+      const onWater = at === 'water';
+      const e = spawnEnemy(w, Kind.Apparition, onWater ? WORLD.pond.x : WORLD.pier.x1 - 0.5, onWater ? WORLD.pond.z : (WORLD.pier.z0 + WORLD.pier.z1) / 2);
       if (e) {
         e.state = 1;
         e.tx = 9999;
+        e.yaw = onWater ? Math.atan2(WORLD.pond.z - p.z, WORLD.pond.x - p.x) : 0;
+        e.delay = onWater ? 1 : 0;
       }
       w.flags.add('pierFigure');
       const pier = w.interactables.find((it) => it.id === 'pier');
       if (pier) pier.enabled = true;
+    } else if (at === 'corner' && house !== undefined) {
+      // сидит лицом в угол, у задней стены
+      const h = w.layout.houses[house];
+      if (!h) return;
+      const [x, z] = toWorld(h, 2.4, -1.85);
+      const [bx, bz] = toWorld(h, 2.4, -3);
+      const e = spawnEnemy(w, Kind.Apparition, x, z);
+      if (e) {
+        e.state = 1;
+        e.tx = 9999;
+        e.yaw = Math.atan2(bz - z, bx - x);
+      }
     } else if (at === 'behind') {
       const a = p.yaw + Math.PI;
       const e = spawnEnemy(w, Kind.Apparition, p.x + Math.cos(a) * 1.3, p.z + Math.sin(a) * 1.3);

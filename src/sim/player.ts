@@ -23,7 +23,8 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   const door = w.layout.hutDoor;
   const nearHut = Math.hypot(p.x - door.x, p.z - door.z) < 2.1;
   if (nearHut && !w.flags.has('hutVisited')) w.flags.add('hutVisited');
-  p.canReel = nearHut && w.air < 0.985;
+  // без лампы (вторая ночь) бобину не запустить
+  p.canReel = nearHut && w.air < 0.985 && !w.flags.has('reelLocked');
   p.holdingReel = p.canReel && inp.action;
   if (p.holdingReel) {
     p.reel += dt / 2.4;

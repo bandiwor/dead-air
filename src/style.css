@@ -358,3 +358,17 @@ button {
 .journal li.broken::after { content: ' — ' attr(data-tag); text-decoration: none; display: inline-block; margin-left: 4px; color: var(--phos); }
 .journal .frag { color: var(--phos); font-style: italic; }
 .journal .jnote { color: #c8bfa8; font-size: 11.5px; }
+
+.menu.nights { margin-top: 0; }
+.mbtn.locked { opacity: 0.45; display: grid; gap: 4px; cursor: default; }
+
+/* стоп-кадр бестиария */
+.beast { position: absolute; inset: 0; z-index: 4; display: grid; grid-template-columns: 1fr minmax(0, 44%); align-items: center; padding: 0 calc(28px + var(--safe-r)) 0 16px; }
+.beast-card { grid-column: 2; display: grid; gap: 12px; border-left: 1px solid var(--line); padding: 10px 0 10px 20px; }
+.beast-tag { color: var(--sodium); font-size: 10px; letter-spacing: 0.4em; }
+.beast-name { color: var(--ink); font-size: clamp(24px, 5vw, 40px); letter-spacing: 0.24em; min-height: 1.2em; }
+.beast-desc { color: #c8c0ac; font-size: 13px; line-height: 1.6; min-height: 3em; }
+.beast-tip { color: var(--phos); font-size: 12px; line-height: 1.55; font-style: italic; }
+.beast-hint { color: var(--dim); font-size: 10px; letter-spacing: 0.2em; transition: opacity 0.4s; animation: blink 1.2s steps(2) infinite; }
+
+.hud.beastmode > * { display: none !important; }

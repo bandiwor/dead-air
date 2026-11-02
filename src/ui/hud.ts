@@ -152,11 +152,10 @@ export class Hud {
       this.promptFill.style.transform = `scaleX(${p.reel.toFixed(3)})`;
       this.prompt.classList.remove('rule');
     } else if (focus) {
-      const key = focus.kind === 'knock' ? 'prompt.knock' : focus.kind === 'pier' ? 'prompt.call' : focus.kind === 'switch' ? 'prompt.switch' : 'prompt.read';
-      this.set(this.promptLabel, t(key));
+      this.set(this.promptLabel, t((focus.prompt || 'prompt.read') as Parameters<typeof t>[0]));
       this.promptFill.style.transform = `scaleX(${focus.hold > 0 ? (p.focusHold / focus.hold).toFixed(3) : '0'})`;
       // нарушение Наказа подсвечено иначе — игрок понимает цену выбора
-      this.prompt.classList.toggle('rule', focus.kind !== 'note');
+      this.prompt.classList.toggle('rule', focus.rule);
     }
 
     this.set(this.objective, w.objective ? t(w.objective as Parameters<typeof t>[0]) : '');

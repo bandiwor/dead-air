@@ -6,8 +6,8 @@ import type { StrKey } from '../i18n';
  */
 
 export type SpawnAt = 'doorOut' | 'inside' | 'pierWater' | 'behind' | 'crevice' | 'forest';
-export type AppearAt = 'pier' | 'behind' | 'pole' | 'window';
-export type ScareId = 'jumpscare' | 'scratch' | 'duck' | 'knockBack' | 'turn' | 'names';
+export type AppearAt = 'pier' | 'behind' | 'pole' | 'window' | 'water' | 'corner';
+export type ScareId = 'jumpscare' | 'scratch' | 'duck' | 'knockBack' | 'turn' | 'names' | 'speaker' | 'wet';
 
 export type Effect =
   | { line: StrKey; style?: number }
@@ -17,9 +17,12 @@ export type Effect =
   | { closeDoor: number }
   | { light: number; on: boolean }
   | { deadAir: true }
-  | { spawn: 'whisperer' | 'mute'; count: number; at: SpawnAt; house?: number }
+  | { spawn: 'whisperer' | 'mute' | 'unseeing'; count: number; at: SpawnAt; house?: number }
   | { appear: AppearAt; house?: number }
   | { despawnPier: true }
+  | { enable: string }
+  | { disable: string }
+  | { unflag: string }
   | { scare: ScareId; house?: number }
   | { objective: StrKey | ''; marker?: { house?: number; pier?: boolean } | null }
   | { flag: string }
@@ -39,4 +42,50 @@ export interface Beat {
   id: string;
   when: Condition;
   do: Effect[];
+}
+
+/** Записка/улика внутри дома (локальные координаты дома). */
+export interface NoteDef {
+  id: string;
+  key: StrKey;
+  x: number;
+  z: number;
+  after?: Effect[];
+}
+
+/** Что происходит с домом в эту ночь: записки и ответ на стук/попытку открыть. */
+export interface HouseScript {
+  house: number;
+  notes: NoteDef[];
+  /** Пусто — дверь этим способом не открыть (откроет сценарий). */
+  knock: Effect[];
+}
+
+export type Anchor = 'pierEnd' | 'pierStart' | 'hutSide' | 'hutDoorSide' | { house: number; x: number; z: number };
+
+/** Особое действие ночи: рубильник, позвать с пристани, посмотреть в воду, взять лампу… */
+export interface ExtraDef {
+  id: string;
+  prompt: StrKey;
+  /** Нарушает Наказ (подсказка подсвечивается). */
+  rule: boolean;
+  at: Anchor;
+  r: number;
+  hold: number;
+  enabled: boolean;
+  once: boolean;
+  /** Показывать искру-подсказку. */
+  glint?: boolean;
+  effects: Effect[];
+}
+
+/** План кат-сцены. */
+export interface Shot {
+  from: [number, number, number];
+  to: [number, number, number];
+  lookFrom: [number, number, number];
+  lookTo: [number, number, number];
+  dur: number;
+  fov?: number;
+  line?: StrKey;
 }

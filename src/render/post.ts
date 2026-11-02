@@ -21,6 +21,9 @@ uniform float uFlash;
 uniform float uFade;
 uniform float uLevels;
 uniform float uDeadAir;
+uniform sampler2D tShow;
+uniform float uShow;
+uniform float uInvert;
 varying vec2 vUv;
 
 float bayer2(vec2 a){ a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
@@ -45,6 +48,13 @@ void main() {
   col.g = texture2D(tScene, uv).g;
   col.b = texture2D(tScene, uv - vec2(ca, 0.0)).b;
 
+  // стоп-кадр: замерший кадр гаснет и выцветает, поверх проявляется витрина существа
+  if (uShow > 0.0) {
+    float lf = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    col = mix(col, vec3(lf * 0.22, lf * 0.25, lf * 0.3), uShow);
+    vec4 sh = texture2D(tShow, vUv);
+    col = mix(col, sh.rgb * 1.25, sh.a * smoothstep(0.35, 1.0, uShow));
+  }
   // мягкая тональная компрессия
   col = col / (1.0 + col * 0.55) * 1.3;
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
@@ -66,6 +76,8 @@ void main() {
   // строки развёртки
   col *= 0.95 + 0.05 * step(0.5, fract(gl_FragCoord.y * 0.5));
   col *= 1.0 - uFade;
+  // негатив на долю секунды — удар скримера
+  col = mix(col, 1.0 - col, uInvert);
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -84,6 +96,9 @@ export class PostPass {
     uFade: { value: 0 },
     uLevels: { value: 28 },
     uDeadAir: { value: 0 },
+    tShow: { value: null as THREE.Texture | null },
+    uShow: { value: 0 },
+    uInvert: { value: 0 },
   };
 
   constructor() {

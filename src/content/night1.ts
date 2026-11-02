@@ -1,33 +1,4 @@
-import type { StrKey } from '../i18n';
-import type { KindId } from './enemies';
-import type { Beat, Effect } from './script';
-
-export type SpawnFrom = 'crevice' | 'pond' | 'forest' | 'behind';
-
-export interface WaveDef {
-  at: number;
-  spawns: { kind: KindId; count: number; from: SpawnFrom }[];
-  pulse: number;
-  startLine?: StrKey;
-  endLine?: StrKey;
-  reward?: { weapon?: string; house: number };
-}
-
-export interface NightDef {
-  id: string;
-  duration: number;
-  startHour: number;
-  endHour: number;
-  reelSeconds: number;
-  waves: WaveDef[];
-  beats: Beat[];
-  rules: StrKey[];
-  /** Сценарии взаимодействий, которые нарушают Наказ. */
-  pierCall: Effect[];
-  switchOff: Effect[];
-  /** Обрывки, которые договаривают шептуны в тишине (по порядку — так складывается история). */
-  fragments: StrKey[];
-}
+import type { NightDef } from './night';
 
 /*
  * Ночь первая. Логика:
@@ -38,6 +9,16 @@ export interface NightDef {
  */
 export const NIGHT1: NightDef = {
   id: 'night1',
+  index: 1,
+  titleKey: 'night.1',
+  fog: 0.03,
+  lights: [true, false, false, true, false, false],
+  startWeapons: ['revolver', 'flaregun'],
+  knockRule: 2,
+  knockPrompt: 'prompt.knock',
+  dawnTruth: 'cut.dawn.3b',
+  dawnTitle: 'dawn.title',
+  dawnSub: 'dawn.sub',
   duration: 540,
   startHour: 22,
   endHour: 6,
@@ -78,6 +59,8 @@ export const NIGHT1: NightDef = {
     { id: 'nakaz', when: { t: 0.4 }, do: [{ note: 'note.nakaz' }, { objective: 'obj.air', marker: null }] },
     { id: 'start', when: { t: 2 }, do: [{ line: 'n1.start.2' }] },
     { id: 'hut', when: { flag: 'hutVisited' }, do: [{ line: 'n1.hut', style: 2 }] },
+    // голос в эфире узнаёт вас — первая трещина в «я здесь чужой»
+    { id: 'voice', when: { t: 50 }, do: [{ scare: 'duck' }, { wait: 1.2 }, { scare: 'speaker' }, { line: 'n1.voice', style: 1 }, { wait: 3 }, { line: 'n1.voice2' }] },
 
     // после первой волны: дом у колодца приглашает войти
     {
@@ -117,7 +100,7 @@ export const NIGHT1: NightDef = {
       do: [
         { scare: 'names' }, { line: 'n1.names1', style: 1 }, { wait: 4 },
         { line: 'n1.names2', style: 1 }, { wait: 4 }, { line: 'n1.names3', style: 1 }, { wait: 2.5 },
-        { deadAir: true }, { line: 'n1.names4' },
+        { deadAir: true }, { line: 'n1.names4' }, { wait: 2 }, { line: 'n1.names5' },
       ],
     },
     // 03:30 — на краю пристани кто-то стоит спиной. Ждёт, что позовут.
@@ -128,11 +111,40 @@ export const NIGHT1: NightDef = {
     },
     { id: 'sanity', when: { sanityBelow: 35 }, do: [{ line: 'n1.sanity' }] },
   ],
-  pierCall: [
-    { flag: 'broke:4' }, { objective: 'obj.air', marker: null }, { line: 'n1.call1' }, { scare: 'duck' },
+  extras: [
+    {
+      id: 'pier', prompt: 'prompt.call', rule: true, at: 'pierEnd', r: 2, hold: 1.4, enabled: false, once: true,
+      effects: [
+        { flag: 'broke:4' }, { objective: 'obj.air', marker: null }, { line: 'n1.call1' }, { scare: 'duck' },
     { wait: 1.8 }, { scare: 'turn' }, { wait: 1.4 }, { scare: 'jumpscare' }, { despawnPier: true },
     { fragment: true }, { line: 'n1.call2' }, { wait: 1 }, { spawn: 'mute', count: 1, at: 'pierWater' },
+      ],
+    },
+    { id: 'switch', prompt: 'prompt.switch', rule: true, at: 'hutSide', r: 1.1, hold: 0, enabled: true, once: false, effects: [{ flag: 'broke:1' }, { deadAir: true }, { line: 'n1.broke1' }] },
   ],
-  switchOff: [{ flag: 'broke:1' }, { deadAir: true }, { line: 'n1.broke1' }],
+  houses: [
+    { house: 0, notes: [{ id: 'dinner', key: 'note.dinner', x: 0.9, z: -1.3 }, { id: 'receiver', key: 'note.receiver', x: -2.45, z: 1.0 }],
+      knock: [{ scare: 'knockBack', house: 0 }, { wait: 2.2 }, { openDoor: 0 }, { line: 'n1.open0' }] },
+    { house: 1, notes: [{ id: 'mirror', key: 'note.mirror', x: 0, z: -1.7, after: [{ scare: 'duck' }, { wait: 0.4 }, { appear: 'behind' }, { line: 'n1.behind' }] }],
+      knock: [{ scare: 'knockBack', house: 1 }, { wait: 2.6 }, { openDoor: 1 }, { line: 'n1.open1' }] },
+    { house: 2, notes: [{ id: 'drawings', key: 'note.drawings', x: -1.5, z: -2.05 }], knock: [] },
+    { house: 3, notes: [{ id: 'list', key: 'note.list', x: -1.2, z: -1.2 }], knock: [{ wait: 5 }, { openDoor: 3 }, { line: 'n1.open3' }] },
+    { house: 4, notes: [{ id: 'floor', key: 'note.floor', x: 1.2, z: 0.2 }],
+      knock: [{ scare: 'scratch', house: 4 }, { wait: 2.5 }, { openDoor: 4 }, { spawn: 'whisperer', count: 5, at: 'inside', house: 4 }, { line: 'n1.open4' }] },
+    { house: 5, notes: [{ id: 'photo', key: 'note.photo', x: 1.95, z: -0.6 }],
+      knock: [{ light: 5, on: true }, { appear: 'window', house: 5 }, { wait: 2.2 }, { light: 5, on: false }, { wait: 1 }, { openDoor: 5 }, { line: 'n1.open5' }] },
+  ],
+  intro: [
+    { from: [-34, 30, -78], to: [-14, 22, -66], lookFrom: [-4, 2, -46], lookTo: [-3, 0, -40], dur: 6, fov: 38, line: 'cut.intro.1' },
+    { from: [44, 7, 38], to: [33, 5, 32], lookFrom: [17, 0, 19], lookTo: [20, -0.4, 19], dur: 6, fov: 36, line: 'cut.intro.2' },
+    { from: [-5, 2.2, 7], to: [-2.5, 3.5, 4.5], lookFrom: [0, 6.6, 0], lookTo: [0, 7, 0], dur: 6, fov: 42, line: 'cut.intro.3' },
+    { from: [1, 4, 10], to: [3.5, 14, 13], lookFrom: [5, 1.2, 0], lookTo: [3.8, 0.5, 2.6], dur: 7, fov: 42, line: 'cut.intro.4' },
+  ],
+  dawn: [
+    { from: [8, 9, 34], to: [12, 6, 30], lookFrom: [18, 0, 18], lookTo: [20, -0.4, 19], dur: 6, fov: 36, line: 'cut.dawn.1' },
+    { from: [14, 1.8, 21.5], to: [16, 1.5, 20.6], lookFrom: [22, -0.6, 19], lookTo: [24, -0.8, 19.5], dur: 6, fov: 40, line: 'cut.dawn.2' },
+    { from: [20.5, 2.4, 19], to: [21.2, 1.4, 19], lookFrom: [22.5, -0.75, 19], lookTo: [22.6, -0.76, 19.1], dur: 6, fov: 44, line: 'cut.dawn.3' },
+    { from: [3, 3, 4], to: [5, 2.2, 1.5], lookFrom: [6.5, 1.2, -4.5], lookTo: [6.5, 1.0, -3], dur: 7, fov: 40, line: 'cut.dawn.4' },
+  ],
   fragments: ['frag.1', 'frag.2', 'frag.3', 'frag.4', 'frag.5', 'frag.6', 'frag.7', 'frag.8', 'frag.9', 'frag.10'],
 };

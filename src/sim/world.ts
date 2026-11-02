@@ -3,11 +3,10 @@ import { clamp } from '../core/math';
 import { buildLayout, type Layout } from '../proc/layout';
 import { WORLD } from '../proc/terrain';
 import { WEAPONS } from '../content/weapons';
-import type { NightDef } from '../content/night1';
+import type { NightDef } from '../content/night';
 import { Kind } from '../content/enemies';
 import { Statics } from './collision';
 import { Barrel, Enemy, Flare, Interactable, Pickup, Projectile, type EvType, type InputFrame, type Player, type SimEvent } from './types';
-import { INTERIORS } from '../content/interiors';
 import { doorOf } from '../proc/layout';
 import { houseAt, toWorld } from './houses';
 import { updatePlayer } from './player';
@@ -106,40 +105,58 @@ export class World {
       weapon: 0,
       mag: WEAPONS.map((w) => w.mag),
       reserve: WEAPONS.map((w) => w.startReserve),
-      owned: WEAPONS.map((w) => w.owned),
+      owned: WEAPONS.map((w) => cfg.night.startWeapons.includes(w.id)),
       cooldown: 0, reload: 0, dynamite: 3, throwCd: 0, stillT: 0, moving: false, invuln: 0,
       stepAcc: 0, reel: 0, holdingReel: false, inLight: true, lastNoiseT: -99, canReel: false,
       focus: -1, focusHold: 0, actionPrev: false, holding: false,
     };
     this.doorOpen = this.statics.doorOpen;
-    this.houseLight = this.layout.houses.map((h) => h.lit);
+    this.houseLight = this.layout.houses.map((_, i) => cfg.night.lights[i] ?? false);
     this.buildInteractables();
     this.director = new Director(this);
     this.narrative = new Narrative(this);
   }
 
   private buildInteractables(): void {
+    const night = this.cfg.night;
     const add = (o: Partial<Interactable>): void => {
       this.interactables.push(Object.assign(new Interactable(), o));
     };
-    this.layout.houses.forEach((h, i) => {
-      const d = doorOf(h, 0.9);
-      // в дом у колодца не стучат — он откроется сам
-      add({ id: `knock:${i}`, kind: 'knock', x: d.x, z: d.z, r: 1.3, house: i, enabled: i !== 2 });
-    });
-    for (const it of INTERIORS) {
-      const h = this.layout.houses[it.house];
+    for (const hs of night.houses) {
+      const h = this.layout.houses[hs.house];
       if (!h) continue;
-      for (const n of it.notes) {
+      const d = doorOf(h, 0.9);
+      // пустой ответ — эту дверь откроет только сценарий
+      add({ id: `knock:${hs.house}`, kind: 'knock', x: d.x, z: d.z, r: 1.3, house: hs.house, enabled: hs.knock.length > 0, prompt: night.knockPrompt, rule: night.knockRule > 0 });
+      for (const n of hs.notes) {
         const [x, z] = toWorld(h, n.x, n.z);
-        add({ id: `note:${n.id}`, kind: 'note', x, z, r: 1.15, house: it.house, key: n.key });
+        add({ id: `note:${n.id}`, kind: 'note', x, z, r: 1.15, house: hs.house, key: n.key, prompt: 'prompt.read' });
       }
     }
-    add({ id: 'pier', kind: 'pier', x: WORLD.pier.x1 - 2.2, z: (WORLD.pier.z0 + WORLD.pier.z1) / 2, r: 2, enabled: false, hold: 1.4 });
-    // рубильник на боковой стене радиоузла — далеко от двери, чтобы не путать со сменой бобины
     const hut = this.layout.hut;
-    const [sx, sz] = toWorld(hut, -hut.w / 2 - 0.7, 0);
-    add({ id: 'switch', kind: 'switch', x: sx, z: sz, r: 1.1 });
+    for (const ex of night.extras) {
+      let x = 0;
+      let z = 0;
+      let house = -1;
+      const a = ex.at;
+      if (a === 'pierEnd') {
+        x = WORLD.pier.x1 - 2.2;
+        z = (WORLD.pier.z0 + WORLD.pier.z1) / 2;
+      } else if (a === 'pierStart') {
+        x = WORLD.pier.x0 + 1.2;
+        z = WORLD.pier.z1 + 0.4;
+      } else if (a === 'hutSide') {
+        // рубильник на боковой стене — далеко от двери, чтобы не путать со сменой бобины
+        [x, z] = toWorld(hut, -hut.w / 2 - 0.7, 0);
+      } else if (a === 'hutDoorSide') {
+        [x, z] = toWorld(hut, 1.3, hut.d / 2 + 0.6);
+      } else {
+        const h = this.layout.houses[a.house];
+        if (h) [x, z] = toWorld(h, a.x, a.z);
+        house = a.house;
+      }
+      add({ id: ex.id, kind: 'custom', x, z, r: ex.r, house, enabled: ex.enabled, hold: ex.hold, prompt: ex.prompt, rule: ex.rule, once: ex.once, glint: !!ex.glint, effects: ex.effects });
+    }
   }
 
   /** Отложенное действие сценария (в секундах симуляции). */
