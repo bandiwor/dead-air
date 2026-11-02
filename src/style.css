@@ -1,0 +1,333 @@
+/*
+ * Стиль интерфейса «БЕТОН · ИНЕЙ · ФОСФОР»: моноширинный текст, фосфорный циан,
+ * натриевый янтарь для важного, красный — только для смерти. Жёсткие края, без градиентов и скруглений.
+ */
+:root {
+  --bg: #05080b;
+  --ink: #c9d2cc;
+  --dim: #6c7a74;
+  --phos: #7fd6c2;
+  --sodium: #e8a33d;
+  --red: #b3261e;
+  --line: rgba(127, 214, 194, 0.35);
+  --font: 'Cascadia Mono', 'JetBrains Mono', 'DejaVu Sans Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+#app { position: fixed; inset: 0; }
+
+.view {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+}
+
+.touch { position: absolute; inset: 0; touch-action: none; }
+
+.hidden { display: none !important; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* ---------- стики ---------- */
+.stick {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 124px;
+  height: 124px;
+  border: 1px solid var(--line);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+  will-change: transform;
+}
+.stick::before {
+  content: '';
+  position: absolute;
+  inset: 45%;
+  background: var(--line);
+}
+.stick.on { opacity: 1; }
+.stick .knob {
+  position: absolute;
+  left: 42px;
+  top: 42px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--phos);
+  background: rgba(127, 214, 194, 0.12);
+  will-change: transform;
+}
+.stick-aim .knob { border-color: var(--sodium); background: rgba(232, 163, 61, 0.12); }
+
+/* ---------- HUD ---------- */
+.hud { position: absolute; inset: 0; pointer-events: none; font-size: 12px; letter-spacing: 0.08em; text-shadow: 0 0 4px #000; }
+.hud-tl { position: absolute; left: calc(14px + var(--safe-l)); top: calc(10px + var(--safe-t)); display: grid; gap: 3px; }
+.hud-clock { font-size: 20px; color: var(--phos); letter-spacing: 0.12em; }
+.hud-wave { color: var(--dim); font-size: 11px; }
+.hud-air { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.hud-air-label { color: var(--sodium); min-width: 4.5em; }
+.hud-air.low .hud-air-label { animation: blink 0.6s steps(2) infinite; }
+.hud-air.dead .hud-air-label { color: var(--red); animation: none; }
+.bar { position: relative; width: 110px; height: 6px; border: 1px solid var(--line); overflow: hidden; }
+.bar-fill { position: absolute; inset: 1px; background: var(--sodium); transform-origin: 0 50%; will-change: transform; }
+.hud-air .bar { width: 96px; }
+.hud-air.dead .bar-fill { background: var(--red); }
+
+.btn-pause {
+  position: absolute;
+  right: calc(12px + var(--safe-r));
+  top: calc(8px + var(--safe-t));
+  width: 40px;
+  height: 34px;
+  border: 1px solid var(--line);
+  color: var(--phos);
+  pointer-events: auto;
+  font-size: 12px;
+}
+
+.hud-bl { position: absolute; left: calc(16px + var(--safe-l)); bottom: calc(14px + var(--safe-b)); }
+.bar-hp { width: 140px; height: 8px; }
+.bar-hp .bar-fill { background: var(--ink); }
+.bar-hp.low .bar-fill { background: var(--red); animation: blink 0.9s steps(2) infinite; }
+
+.hud-br {
+  position: absolute;
+  right: calc(16px + var(--safe-r));
+  top: calc(50px + var(--safe-t));
+  text-align: right;
+  display: grid;
+  gap: 2px;
+}
+.hud-weapon { color: var(--ink); font-size: 12px; }
+.hud-ammo { color: var(--sodium); font-size: 18px; }
+.hud-dyn { color: var(--dim); font-size: 11px; }
+
+.hud-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: calc(26% + var(--safe-b));
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  color: var(--sodium);
+}
+.bar-prompt { width: 160px; }
+
+.hud.cine > *:not(.subs) { display: none; }
+.subs {
+  position: absolute;
+  left: 50%;
+  bottom: calc(12% + var(--safe-b));
+  transform: translateX(-50%);
+  width: min(72vw, 640px);
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  opacity: 0;
+  transition: opacity 0.4s;
+  background: rgba(5, 8, 11, 0.55);
+  padding: 4px 10px;
+}
+.subs.on { opacity: 1; }
+.subs.style-1 { color: var(--phos); font-style: italic; letter-spacing: 0.14em; }
+.subs.style-2 { color: var(--sodium); }
+
+.toast {
+  position: absolute;
+  left: 50%;
+  top: calc(16% + var(--safe-t));
+  transform: translateX(-50%);
+  color: var(--sodium);
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.toast.on { opacity: 1; }
+
+.marker {
+  position: absolute;
+  left: -8px;
+  top: -10px;
+  color: var(--sodium);
+  font-size: 18px;
+  animation: blink 0.8s steps(2) infinite;
+  will-change: transform;
+}
+
+/* кнопки действий: дуга над правым стиком, в зоне большого пальца */
+.buttons { position: absolute; inset: 0; pointer-events: none; }
+.btn {
+  position: absolute;
+  pointer-events: auto;
+  width: 66px;
+  height: 46px;
+  border: 1px solid var(--line);
+  background: rgba(5, 8, 11, 0.45);
+  color: var(--ink);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.btn.pressed { background: rgba(127, 214, 194, 0.25); color: #fff; }
+.btn-action { right: calc(18px + var(--safe-r)); bottom: calc(150px + var(--safe-b)); border-color: var(--sodium); color: var(--sodium); }
+.btn-throw { right: calc(96px + var(--safe-r)); bottom: calc(176px + var(--safe-b)); }
+.btn-reload { right: calc(174px + var(--safe-r)); bottom: calc(176px + var(--safe-b)); }
+.btn-swap { right: calc(18px + var(--safe-r)); bottom: calc(206px + var(--safe-b)); }
+
+/* ---------- экраны ---------- */
+.screens { position: absolute; inset: 0; pointer-events: none; }
+.screen {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  pointer-events: auto;
+  background: rgba(5, 8, 11, 0.6);
+  padding: calc(16px + var(--safe-t)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
+  text-align: center;
+}
+.screen-boot, .screen-loading, .screen-dead, .screen-dawn, .screen-disclaimer { background: rgba(5, 8, 11, 0.92); }
+.screen-title { background: linear-gradient(transparent, transparent); background: rgba(5, 8, 11, 0.35); }
+.screen-none { display: none; }
+
+.logo { font-size: clamp(26px, 6vw, 46px); letter-spacing: 0.32em; color: var(--ink); padding-left: 0.32em; }
+.logo.red { color: var(--red); }
+.small-logo { font-size: 22px; }
+.sub { color: var(--dim); font-size: 13px; letter-spacing: 0.18em; }
+.small { color: var(--dim); font-size: 11px; letter-spacing: 0.12em; }
+.foot { position: absolute; bottom: calc(10px + var(--safe-b)); left: 0; right: 0; }
+.blink { color: var(--phos); font-size: 13px; letter-spacing: 0.2em; animation: blink 1.2s steps(2) infinite; margin-top: 18px; }
+
+.menu { display: grid; gap: 8px; margin-top: 14px; min-width: 240px; }
+.mbtn {
+  border: 1px solid var(--line);
+  padding: 11px 18px;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  color: var(--ink);
+  background: rgba(5, 8, 11, 0.6);
+}
+.mbtn:active, .mbtn:hover { border-color: var(--phos); color: var(--phos); }
+
+.panel {
+  border: 1px solid var(--line);
+  background: rgba(5, 8, 11, 0.85);
+  padding: 16px 18px;
+  max-width: min(640px, 88vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: left;
+  display: grid;
+  gap: 12px;
+  touch-action: pan-y;
+}
+.panel-title { color: var(--sodium); letter-spacing: 0.24em; font-size: 13px; }
+.panel-text { font-size: 12.5px; line-height: 1.6; color: var(--ink); }
+
+.settings { min-width: min(420px, 86vw); gap: 4px; }
+.setting {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 10px 4px;
+  border-bottom: 1px solid rgba(127, 214, 194, 0.12);
+  font-size: 13px;
+  text-align: left;
+}
+.setting .val { color: var(--phos); }
+
+.pause-cols { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+.rules { max-width: 380px; }
+.rules-list { padding-left: 1.4em; display: grid; gap: 8px; font-size: 12.5px; line-height: 1.45; }
+
+.bar-load { width: 220px; height: 6px; }
+
+/* кинематографичные поля */
+.letterbox { position: absolute; inset: 0; pointer-events: none; }
+.lb-top, .lb-bottom { position: absolute; left: 0; right: 0; height: 0; background: #000; transition: height 0.6s ease; }
+.lb-top { top: 0; }
+.lb-bottom { bottom: 0; }
+.letterbox.on .lb-top, .letterbox.on .lb-bottom { height: 11vh; }
+.skip-hint { position: absolute; right: calc(16px + var(--safe-r)); bottom: calc(3vh + var(--safe-b)); color: var(--dim); font-size: 10px; letter-spacing: 0.16em; pointer-events: none; }
+
+.rotate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  color: var(--phos);
+  place-content: center;
+  text-align: center;
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  padding: 24px;
+  z-index: 10;
+}
+@media (orientation: portrait) and (pointer: coarse) {
+  .rotate { display: grid; }
+}
+
+.fatal { position: fixed; inset: 0; display: grid; place-content: center; color: var(--ink); font: 14px var(--font); padding: 24px; text-align: center; }
+
+@keyframes blink { 50% { opacity: 0.25; } }
+
+@media (max-height: 380px) {
+  .hud-clock { font-size: 16px; }
+  .btn { width: 58px; height: 40px; }
+  .btn-action { bottom: calc(128px + var(--safe-b)); }
+  .btn-throw { right: calc(84px + var(--safe-r)); bottom: calc(150px + var(--safe-b)); }
+  .btn-reload { right: calc(150px + var(--safe-r)); bottom: calc(150px + var(--safe-b)); }
+  .btn-swap { bottom: calc(176px + var(--safe-b)); }
+}
+
+/* окно обновления */
+.update-modal {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  background: rgba(5, 8, 11, 0.7);
+  z-index: 5;
+  padding: 16px;
+}
+.update-modal .panel { border-color: var(--sodium); max-width: min(460px, 88vw); }
+.menu.row { grid-auto-flow: column; min-width: 0; }
+.version { text-align: right; margin-top: 4px; }

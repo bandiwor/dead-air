@@ -1,0 +1,18 @@
+{
+  "name": "Мёртвый эфир",
+  "short_name": "Мёртвый эфир",
+  "description": "Хоррор на выживание. Ночь первая: Устье.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#05080b",
+  "theme_color": "#05080b",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

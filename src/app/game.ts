@@ -1,0 +1,358 @@
+import * as THREE from 'three';
+import { World } from '../sim/world';
+import { NIGHT1 } from '../content/night1';
+import { emptyInput } from '../sim/types';
+import { hashString } from '../core/rng';
+import { AudioEngine } from '../audio/engine';
+import { Ambience } from '../audio/ambience';
+import { GameRenderer } from '../render/renderer';
+import { loadTextures, type TextureSet } from '../render/textures';
+import { Input } from '../platform/input';
+import { enterImmersive, isTouch, onHidden, setVibration } from '../platform/native';
+import { loadSettings, saveSettings, type Settings } from '../platform/storage';
+import { Hud } from '../ui/hud';
+import { Screens } from '../ui/screens';
+import { Cutscene, DAWN, INTRO } from './cutscene';
+import { Updater, type UpdateStatus } from '../platform/updates';
+import { t } from '../i18n';
+import { handleEvents, nearestEnemy } from './events';
+
+type Mode = 'boot' | 'loading' | 'title' | 'intro' | 'play' | 'pause' | 'dying' | 'dead' | 'dawn' | 'dawnScreen';
+
+const STEP = 1 / 60;
+const TEX_SEED = 1953;
+
+/**
+ * Корень композиции: связывает симуляцию, рендер, звук, ввод и интерфейс.
+ * Единственное место, которое знает обо всех слоях.
+ */
+export class Game {
+  private readonly canvas: HTMLCanvasElement;
+  private settings: Settings;
+  private readonly audio = new AudioEngine();
+  private readonly amb: Ambience;
+  private readonly input: Input;
+  private readonly hud: Hud;
+  private readonly screens: Screens;
+  private renderer: GameRenderer | null = null;
+  private world: World;
+  private mode: Mode = 'boot';
+  private acc = 0;
+  private last = 0;
+  private attempt = 0;
+  private cut: Cutscene | null = null;
+  private introSeen = false;
+  private menuT = 0;
+  private modeT = 0;
+  private readonly frame = emptyInput();
+  private readonly updater = new Updater();
+  private updateOffered = false;
+  private readonly menuPos = new THREE.Vector3();
+  private readonly menuLook = new THREE.Vector3(0, 2, 0);
+
+  constructor(root: HTMLElement) {
+    this.settings = loadSettings();
+    setVibration(this.settings.vibration);
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = 'view';
+    root.appendChild(this.canvas);
+    const touch = document.createElement('div');
+    touch.className = 'touch';
+    root.appendChild(touch);
+    this.input = new Input(touch);
+    this.input.autofire = this.settings.autofire;
+    this.input.onPause = () => this.pause();
+    this.amb = new Ambience(this.audio);
+    this.hud = new Hud(touch, this.input);
+    this.screens = new Screens(root, this.settings, {
+      onTap: () => void this.onBootTap(),
+      onAcceptDisclaimer: () => {
+        this.settings.disclaimerAccepted = true;
+        saveSettings(this.settings);
+        void this.load().catch((e: unknown) => this.fail(e));
+      },
+      onStart: () => this.startNight(),
+      onResume: () => this.resume(),
+      onRetry: () => this.startNight(),
+      onToTitle: () => this.toTitle(),
+      onSettingsChange: (s) => this.applySettings(s),
+      onClick: () => this.audio.play('ui', { bus: 'ui', vol: 0.8, reverb: 0 }),
+      onUpdateRow: () => {
+        if (this.updater.status === 'available') void this.updater.apply();
+        else void this.updater.check();
+      },
+      onUpdateApply: () => void this.updater.apply(),
+    });
+    this.screens.setRules(NIGHT1.rules);
+    this.world = this.makeWorld();
+    this.screens.open('boot');
+    this.updater.onChange = (st) => this.onUpdateStatus(st);
+    this.onUpdateStatus(this.updater.status);
+    this.updater.start();
+
+    onHidden(
+      () => {
+        if (this.mode === 'play' || this.mode === 'intro') this.pause();
+        this.audio.suspend();
+      },
+      () => void this.audio.resume(),
+    );
+    window.addEventListener('resize', () => this.renderer?.resize());
+    touch.addEventListener('pointerdown', () => {
+      if (this.mode === 'intro' || this.mode === 'dawn') this.cut?.skip();
+    });
+    requestAnimationFrame((t) => this.loop(t));
+  }
+
+  private makeWorld(): World {
+    return new World({ seed: hashString(`night1:${this.attempt}:${Date.now() & 0xffff}`), night: NIGHT1, scare: this.settings.scare });
+  }
+
+  private async onBootTap(): Promise<void> {
+    if (this.mode !== 'boot') return;
+    this.audio.init();
+    void this.audio.resume();
+    void enterImmersive();
+    if (!this.settings.disclaimerAccepted) {
+      this.screens.open('disclaimer');
+      this.mode = 'loading';
+      return;
+    }
+    await this.load().catch((e: unknown) => this.fail(e));
+  }
+
+  private fail(e: unknown): void {
+    console.error(e);
+    const el = document.createElement('div');
+    el.className = 'fatal';
+    el.textContent = `Ошибка: ${(e as Error)?.message ?? String(e)}`;
+    document.body.appendChild(el);
+  }
+
+  private async load(): Promise<void> {
+    this.mode = 'loading';
+    this.screens.open('loading');
+    const tex: TextureSet = await loadTextures(TEX_SEED, (d, n) => this.screens.setLoading('ui.loading.textures', (d / n) * 0.3));
+    await this.audio.load((d, n) => this.screens.setLoading('ui.loading.sounds', 0.3 + (d / n) * 0.5));
+    this.screens.setLoading('ui.loading.world', 0.85);
+    await new Promise((r) => setTimeout(r, 0));
+    this.renderer = new GameRenderer(this.canvas, this.world, tex, this.settings.quality);
+    this.renderer.fx.flashScale = this.settings.reduceFlashes ? 0.35 : 1;
+    this.renderer.resize();
+    this.audio.setVolume(this.settings.volume);
+    this.amb.start();
+    this.screens.setLoading('ui.loading.world', 1);
+    this.toTitle();
+  }
+
+  private applySettings(s: Settings): void {
+    const qualityChanged = s.quality !== this.settings.quality;
+    this.settings = s;
+    saveSettings(s);
+    this.screens.updateSettings(s);
+    setVibration(s.vibration);
+    this.input.autofire = s.autofire;
+    this.audio.setVolume(s.volume);
+    if (this.renderer) {
+      this.renderer.fx.flashScale = s.reduceFlashes ? 0.35 : 1;
+      if (qualityChanged) {
+        this.renderer.setQuality(s.quality);
+        this.renderer.resize();
+      }
+    }
+  }
+
+  private onUpdateStatus(st: UpdateStatus): void {
+    this.screens.setUpdateStatus(t(`update.${st}`), this.updater.label);
+    if (st === 'available') this.offerUpdate();
+  }
+
+  /** Окно обновления показывается только в меню — никогда посреди боя или кат-сцены. */
+  private offerUpdate(): void {
+    if (this.updater.status !== 'available' || this.updateOffered) return;
+    const menus: string[] = ['boot', 'title', 'pause', 'dead', 'dawnScreen'];
+    if (!menus.includes(this.mode)) return;
+    this.updateOffered = true;
+    this.screens.showUpdatePrompt(true);
+  }
+
+  private toTitle(): void {
+    this.mode = 'title';
+    this.input.enabled = false;
+    this.input.reset();
+    this.hud.setVisible(false);
+    this.hud.clearSubs();
+    this.screens.open('title');
+    this.offerUpdate();
+    this.letterbox(false);
+    this.world = this.makeWorld();
+    if (this.renderer) this.renderer.fade = 0;
+  }
+
+  private startNight(): void {
+    if (!this.renderer) return;
+    this.attempt++;
+    this.world = this.makeWorld();
+    this.hud.clearSubs();
+    this.screens.open('none');
+    this.renderer.fade = 0;
+    this.renderer.hurt = 0;
+    this.amb.setRadio(true);
+    void enterImmersive();
+    if (!this.introSeen) {
+      this.introSeen = true;
+      this.mode = 'intro';
+      this.cut = new Cutscene(INTRO);
+      this.cut.onLine = (k) => this.hud.line(k, 0);
+      this.letterbox(true);
+      this.hud.setVisible(true);
+      this.hud.setTouch(false);
+      this.cut.start();
+    } else {
+      this.beginPlay();
+    }
+  }
+
+  private beginPlay(): void {
+    this.mode = 'play';
+    this.letterbox(false);
+    this.hud.setVisible(true);
+    this.hud.setTouch(isTouch());
+    this.input.enabled = true;
+    this.input.reset();
+    this.renderer?.snapCamera(this.world);
+    this.acc = 0;
+  }
+
+  private pause(): void {
+    if (this.mode !== 'play' && this.mode !== 'intro') return;
+    this.mode = 'pause';
+    this.input.enabled = false;
+    this.input.reset();
+    this.screens.open('pause');
+    this.offerUpdate();
+  }
+
+  private resume(): void {
+    if (this.mode !== 'pause') return;
+    this.screens.open('none');
+    void this.audio.resume();
+    if (this.cut && !this.cut.done) {
+      this.mode = 'intro';
+    } else {
+      this.beginPlay();
+    }
+  }
+
+  private letterbox(on: boolean): void {
+    if (this.renderer) this.renderer.cinematic = on;
+    this.hud.root.classList.toggle('cine', on);
+    this.screens.letterbox.classList.toggle('on', on);
+    this.screens.skipHint.classList.toggle('hidden', !on);
+  }
+
+  private loop(now: number): void {
+    requestAnimationFrame((t) => this.loop(t));
+    const dt = Math.min(0.1, this.last ? (now - this.last) / 1000 : 0.016);
+    this.last = now;
+    this.modeT += dt;
+    const r = this.renderer;
+    if (!r) return;
+    const w = this.world;
+
+    if (this.mode === 'play' || this.mode === 'dying') {
+      this.acc += dt;
+      let steps = 0;
+      while (this.acc >= STEP && steps < 6) {
+        w.step(this.input.sample(this.frame), STEP);
+        this.acc -= STEP;
+        steps++;
+      }
+      if (steps === 6) this.acc = 0;
+      r.followCamera(w, dt);
+    } else if (this.mode === 'intro' || this.mode === 'dawn') {
+      const shot = this.cut?.update(dt);
+      if (shot) {
+        r.shotCamera({ pos: shot.pos, look: shot.look, fov: shot.fov });
+        r.fade = 1 - Math.min(1, shot.k * 1.2);
+      } else if (this.mode === 'intro') {
+        r.fade = 0;
+        this.hud.clearSubs();
+        this.beginPlay();
+      } else {
+        r.fade = 1;
+        this.mode = 'dawnScreen';
+        this.hud.setVisible(false);
+        this.letterbox(false);
+        this.screens.open('dawn');
+        this.offerUpdate();
+      }
+    } else if (this.mode === 'title' || this.mode === 'loading') {
+      this.menuT += dt;
+      const a = this.menuT * 0.04;
+      this.menuPos.set(Math.cos(a) * 26, 11, Math.sin(a) * 26 + 4);
+      r.shotCamera({ pos: this.menuPos, look: this.menuLook, fov: 44 });
+    }
+
+    if (this.mode === 'dying') {
+      r.fade = Math.min(1, this.modeT / 2.2);
+      if (this.modeT > 2.4) {
+        this.mode = 'dead';
+        this.hud.setVisible(false);
+        this.screens.open('dead');
+        this.offerUpdate();
+      }
+    }
+
+    const ctx = {
+      audio: this.audio,
+      amb: this.amb,
+      r,
+      hud: this.hud,
+      scare: this.settings.scare,
+      reduceFlashes: this.settings.reduceFlashes,
+      onDeath: () => {
+        this.mode = 'dying';
+        this.modeT = 0;
+        this.input.enabled = false;
+        this.input.reset();
+      },
+      onDawn: () => {
+        this.mode = 'dawn';
+        this.input.enabled = false;
+        this.input.reset();
+        this.hud.setTouch(false);
+        this.letterbox(true);
+        this.cut = new Cutscene(DAWN);
+        this.cut.onLine = (k) => this.hud.line(k, 0);
+        this.cut.start();
+      },
+    };
+    handleEvents(w, ctx, dt);
+
+    const playing = this.mode === 'play' || this.mode === 'dying' || this.mode === 'pause';
+    r.flashlightOn = this.mode !== 'title' && this.mode !== 'loading';
+    r.render(w, dt, playing);
+    const p = w.player;
+    this.audio.setListener(p.x, p.z);
+    this.amb.update(
+      {
+        px: this.mode === 'title' ? r.camera.position.x : p.x,
+        pz: this.mode === 'title' ? r.camera.position.z : p.z,
+        tension: w.intensity,
+        sanity: p.sanity / 100,
+        hp: p.hp / 100,
+        deadAir: w.deadAir,
+        nearestEnemy,
+        playing: this.mode !== 'boot',
+      },
+      dt,
+    );
+    const ps = r.project(p.x, p.y + 1, p.z);
+    this.input.playerScreen = ps;
+    if (this.mode === 'play' || this.mode === 'intro' || this.mode === 'dawn') {
+      const door = w.layout.hutDoor;
+      this.hud.update(w, dt, this.input.usingTouch || isTouch(), r.project(door.x, 1, door.z));
+    }
+  }
+}
