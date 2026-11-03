@@ -40,6 +40,8 @@ export const NIGHT3A: NightDef = {
   startWeapons: [],
   dynamite: 0,
   child: true,
+  // ребёнок маленький, лампа светит недалеко — камера ближе
+  cam: 0.66,
   start: [33, 30],
   water: { from: -1.9, to: -0.25, t0: 12, t1: 170 },
   knockRule: 0,
@@ -98,6 +100,7 @@ export const NIGHT3B: NightDef = {
   startWeapons: ['revolver', 'flaregun', 'shotgun', 'rifle'],
   dynamite: 2,
   noRadio: true,
+  cam: 0.74,
   voice: true,
   battery: true,
   ruin: true,

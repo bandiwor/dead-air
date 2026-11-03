@@ -11,7 +11,7 @@ const mem = new Map<string, string>();
   length: 0,
 } as Storage;
 
-const { loadSettings, saveSettings, loadProgress, saveProgress, DEFAULT_SETTINGS } = await import('../src/platform/storage');
+const { loadSettings, saveSettings, loadProgress, saveProgress, resetProgress, DEFAULT_SETTINGS } = await import('../src/platform/storage');
 const { isVersion } = await import('../src/platform/updates');
 
 describe('настройки', () => {
@@ -73,5 +73,14 @@ describe('version.json', () => {
     expect(isVersion({ id: 5, version: '1' })).toBe(false);
     expect(isVersion(null)).toBe(false);
     expect(isVersion('abc')).toBe(false);
+  });
+
+  it('сброс прогресса очищает всё на том же объекте и сохраняет', () => {
+    const p = { unlocked: 3, seen: [0, 1, 5], ach: ['first_blood', 'name'], endings: ['flood'] };
+    const ref = p.ach;
+    resetProgress(p);
+    expect(p).toEqual({ unlocked: 1, seen: [], ach: [], endings: [] });
+    expect(p.ach).toBe(ref);
+    expect(loadProgress()).toEqual({ unlocked: 1, seen: [], ach: [], endings: [] });
   });
 });

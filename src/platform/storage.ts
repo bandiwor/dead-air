@@ -95,6 +95,15 @@ export function loadProgress(): Progress {
   }
 }
 
+/** Сброс прогресса на месте (на объект ссылаются трекер достижений и меню). Настройки не трогаем. */
+export function resetProgress(p: Progress): void {
+  p.unlocked = 1;
+  p.seen.length = 0;
+  p.ach.length = 0;
+  p.endings.length = 0;
+  saveProgress(p);
+}
+
 export function saveProgress(p: Progress): void {
   try {
     localStorage.setItem(PKEY, JSON.stringify(p));

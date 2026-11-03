@@ -18,6 +18,7 @@ export interface ScreenHandlers {
   onUpdateRow: () => void;
   onUpdateApply: () => void;
   onInstallRow: () => void;
+  onResetProgress: () => void;
 }
 
 type ScreenId = 'boot' | 'disclaimer' | 'loading' | 'title' | 'settings' | 'pause' | 'dead' | 'dawn' | 'achievements' | 'none';
@@ -48,6 +49,8 @@ export class Screens {
   private updateText = '';
   private versionLabel = '';
   private installMode: 'none' | 'prompt' | 'ios' = 'none';
+  /** Сброс прогресса — в два нажатия: первое спрашивает «точно?». */
+  private resetArmed = 0;
   current: ScreenId = 'none';
 
   constructor(parent: HTMLElement, settings: Settings, handlers: ScreenHandlers) {
@@ -352,6 +355,30 @@ export class Screens {
         this.h.onInstallRow();
       });
     }
+    const rs = h('button', 'setting danger', undefined, box);
+    h('span', '', t('settings.reset'), rs);
+    const rv = h('span', 'val', t('settings.reset.go'), rs);
+    rs.addEventListener('click', () => {
+      this.h.onClick();
+      const now = performance.now();
+      if (this.resetArmed > 0 && now - this.resetArmed < 4000) {
+        this.resetArmed = 0;
+        this.h.onResetProgress();
+        rv.textContent = t('settings.reset.done');
+        rs.classList.remove('armed');
+        return;
+      }
+      this.resetArmed = now;
+      rv.textContent = t('settings.reset.sure');
+      rs.classList.add('armed');
+      setTimeout(() => {
+        if (this.resetArmed === now) {
+          this.resetArmed = 0;
+          rv.textContent = t('settings.reset.go');
+          rs.classList.remove('armed');
+        }
+      }, 4000);
+    });
     const upd = h('button', 'setting', undefined, box);
     h('span', '', t('settings.updates'), upd);
     h('span', 'val', this.updateText, upd);

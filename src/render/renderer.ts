@@ -190,6 +190,7 @@ export class GameRenderer {
   /** Облик ночи: туман, морось, цветокоррекция, декорации, фонарь. */
   setNight(n: NightDef): void {
     this.baseFog = n.fog;
+    this.nightCam = n.cam ?? 1;
     this.yard12.visible = !!n.child;
     this.ruin.visible = !!n.ruin;
     this.sluice.visible = !!n.sluice;
@@ -253,6 +254,9 @@ export class GameRenderer {
 
   /** Камера по умолчанию: наклонный вид сверху, с упреждением по прицелу. */
   private zoom = 0;
+  private nightCam = 1;
+  /** 0..1 — насколько игрок в Щели: там тесно, камера подходит ближе. */
+  private ravine = 0;
 
   followCamera(w: World, dt: number): void {
     const p = w.player;
@@ -265,7 +269,13 @@ export class GameRenderer {
     this.camLook.x = damp(this.camLook.x, tx, 4, dt);
     this.camLook.y = damp(this.camLook.y, ty + 0.5, 4, dt);
     this.camLook.z = damp(this.camLook.z, tz, 4, dt);
-    const far = 1 + this.debugZoom;
+    const c = WORLD.crevice;
+    const sx = c.bx - c.ax;
+    const sz = c.bz - c.az;
+    const k = clamp(((p.x - c.ax) * sx + (p.z - c.az) * sz) / (sx * sx + sz * sz), 0, 1);
+    const dRav = Math.hypot(p.x - (c.ax + sx * k), p.z - (c.az + sz * k));
+    this.ravine = damp(this.ravine, dRav < c.w + 2.5 ? 1 : 0, 2, dt);
+    const far = (1 + this.debugZoom) * this.nightCam * (1 - this.ravine * 0.22);
     this.camPos.set(this.camLook.x, this.camLook.y + (15 - this.zoom * 6.5) * far, this.camLook.z + (9.8 - this.zoom * 4.6) * far);
     this.camera.fov = damp(this.camera.fov, 42, 3, dt);
   }
@@ -279,7 +289,7 @@ export class GameRenderer {
   snapCamera(w: World): void {
     const p = w.player;
     this.camLook.set(p.x, p.y + 0.5, p.z);
-    this.camPos.set(p.x, p.y + 15, p.z + 9.8);
+    this.camPos.set(p.x, p.y + 15 * this.nightCam, p.z + 9.8 * this.nightCam);
   }
 
   render(w: World, dt: number, playing: boolean): void {

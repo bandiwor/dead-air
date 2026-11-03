@@ -25,6 +25,8 @@ export interface NightDef {
   /** Густота тумана (по умолчанию 0.03). */
   fog: number;
   /** Облик ночи: тени/света (раздельное тонирование), обесцвечивание, клочья тумана, морось. */
+  /** Множитель дальности камеры (меньше — ближе). */
+  cam?: number;
   look: { shadow: [number, number, number]; highlight: [number, number, number]; desat: number; mist: number; rain: boolean };
   /** Свет в окнах в начале ночи (по индексу дома). */
   lights: boolean[];

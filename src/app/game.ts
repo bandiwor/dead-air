@@ -10,7 +10,7 @@ import { GameRenderer } from '../render/renderer';
 import { loadTextures, type TextureSet } from '../render/textures';
 import { Input } from '../platform/input';
 import { enterImmersive, isTouch, onHidden, setVibration } from '../platform/native';
-import { loadProgress, loadSettings, saveProgress, saveSettings, type Settings, type Progress } from '../platform/storage';
+import { loadProgress, loadSettings, resetProgress, saveProgress, saveSettings, type Settings, type Progress } from '../platform/storage';
 import { Hud } from '../ui/hud';
 import { Screens } from '../ui/screens';
 import { Cutscene, type Shot } from './cutscene';
@@ -121,6 +121,12 @@ export class Game {
       },
       onUpdateApply: () => void this.updater.apply(),
       onInstallRow: () => this.openInstall(),
+      onResetProgress: () => {
+        resetProgress(this.progress);
+        this.introSeen.clear();
+        this.refreshNights();
+        this.screens.setAchievements(this.progress.ach);
+      },
     });
     this.installCard = new InstallCard(root, {
       onInstall: () => {
