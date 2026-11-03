@@ -19,10 +19,17 @@ export interface InputFrame {
   assist: boolean;
   /** Нажатие: крикнуть (третья ночь). */
   voice: boolean;
+  /**
+   * Прицел «мягкий» — мышь просто наведена, кнопка не нажата. Тогда на ходу персонаж смотрит
+   * по направлению движения и плавно возвращается к курсору, когда останавливается.
+   */
+  aimSoft: boolean;
+  /** Выбрать оружие по номеру (клавиши 1–5); −1 — не выбирали. */
+  select: number;
 }
 
 export function emptyInput(): InputFrame {
-  return { mx: 0, mz: 0, ax: 0, az: 0, aiming: false, fire: false, action: false, swap: false, throw: false, reload: false, assist: false, voice: false };
+  return { mx: 0, mz: 0, ax: 0, az: 0, aiming: false, fire: false, action: false, swap: false, throw: false, reload: false, assist: false, voice: false, aimSoft: false, select: -1 };
 }
 
 export type EvType =
@@ -164,6 +171,8 @@ export interface Player {
   battery: number;
   /** Выстрел на этом тике: индекс оружия + 1 (0 — не стрелял). Для записи прошлого (Отголосок). */
   fired: number;
+  /** Сколько ещё держать взгляд на прицеле после «жёсткого» прицеливания/выстрела (с). */
+  aimHold: number;
 }
 
 export type InteractKind = 'knock' | 'note' | 'custom';

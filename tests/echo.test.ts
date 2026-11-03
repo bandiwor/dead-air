@@ -6,6 +6,10 @@ import type { SimEvent } from '../src/sim/types';
 import { input, quietWorld, step } from './helpers/sim';
 
 describe('Отголосок — вы сами в прошлом', () => {
+  it('задержка — секунда', () => {
+    expect(ECHO_DELAY).toBe(60);
+  });
+
   it('повторяет путь и прицел точь-в-точь, с задержкой в ECHO_DELAY тиков', () => {
     const w = quietWorld(5);
     const path: [number, number, number][] = [];
@@ -16,7 +20,7 @@ describe('Отголосок — вы сами в прошлом', () => {
       path.push([w.player.x, w.player.z, w.player.yaw]);
     }
     const e = spawnEnemy(w, Kind.Echo, 0, 0)!;
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < ECHO_DELAY - 2; i++) {
       step(w, input({ mx: -1 }), 1 / 60);
       const past = path[path.length - ECHO_DELAY + i]!;
       if (!e.active) break;
@@ -26,44 +30,53 @@ describe('Отголосок — вы сами в прошлом', () => {
     }
   });
 
-  it('стреляет теми же выстрелами, что вы — 5 секунд назад; попадает в вас, если вы на линии', () => {
+  it('стреляет теми же выстрелами, что вы секунду назад; попадает, если вы ушли на линию огня', () => {
     const w = quietWorld(6);
-    w.player.x = 0;
-    w.player.z = 0;
-    // стреляем вправо, стоя на месте
-    const log: SimEvent[] = [];
-    step(w, input({ aiming: true, ax: 1, az: 0, fire: true }), 0.4, log);
-    step(w, input(), 0.2);
-    const myShots = log.filter((e) => e.type === 'shot' && e.c !== 1).length;
-    expect(myShots).toBeGreaterThan(0);
-    // уходим вперёд, на линию собственного огня
-    step(w, input({ mx: 1 }), 1.2);
+    w.player.x = 8;
+    w.player.z = 12;
     spawnEnemy(w, Kind.Echo, 0, 0);
-    const hp0 = 100;
-    w.player.hp = hp0;
-    const later: SimEvent[] = [];
-    // ждём, пока прошлое дойдёт до выстрелов (стоим на линии огня)
-    step(w, input(), 4.5, later, false);
-    const echoShots = later.filter((e) => e.type === 'shot' && e.c === 1).length;
-    expect(echoShots).toBe(myShots);
-    expect(later.some((e) => e.type === 'tracer' && e.c === 4)).toBe(true);
-    expect(w.player.hp).toBeLessThan(hp0);
+    const log: SimEvent[] = [];
+    // стоим и стреляем вправо…
+    step(w, input({ aiming: true, ax: 1, az: 0, fire: true }), 0.4, log, false);
+    // …и тут же идём туда, куда стреляли
+    w.player.hp = 100;
+    step(w, input({ mx: 1 }), 1.6, log, false);
+    const mine = log.filter((e) => e.type === 'shot' && e.c !== 1).length;
+    const echoes = log.filter((e) => e.type === 'shot' && e.c === 1).length;
+    expect(mine).toBeGreaterThan(0);
+    expect(echoes).toBe(mine);
+    expect(log.some((e) => e.type === 'tracer' && e.c === 4)).toBe(true);
+    expect(w.player.hp).toBeLessThan(100);
+    // пули памяти слабее настоящих
+    expect(w.player.hp).toBeGreaterThanOrEqual(100 - 10 * mine);
   });
 
-  it('встанете на месте — прошлое придёт к вам и ударит', () => {
+  it('стоите — прошлое догоняет и тихо сливается с вами', () => {
     const w = quietWorld(7);
     step(w, input({ mx: 1 }), 2);
     spawnEnemy(w, Kind.Echo, 0, 0);
+    w.player.hp = 100;
     const log: SimEvent[] = [];
-    step(w, input(), 7, log);
+    step(w, input(), 2, log, false);
+    expect(w.flags.has('echoMerged')).toBe(true);
+    expect(w.flags.has('broke:3')).toBe(false);
+    expect(w.player.hp).toBe(100);
+  });
+
+  it('пойдёте назад по своему следу — столкнётесь с собой', () => {
+    const w = quietWorld(9);
+    step(w, input({ mx: 1 }), 2);
+    spawnEnemy(w, Kind.Echo, 0, 0);
+    w.player.hp = 100;
+    step(w, input({ mx: -1 }), 1.5, [], false);
     expect(w.flags.has('broke:3')).toBe(true);
-    expect(log.some((e) => e.type === 'vanish' && e.a === Kind.Echo)).toBe(true);
+    expect(w.player.hp).toBeLessThan(100);
   });
 
   it('пока прошлого не накопилось — невидим и безвреден', () => {
     const w = quietWorld(8);
     const e = spawnEnemy(w, Kind.Echo, 3, 3)!;
-    step(w, input(), 1);
+    step(w, input(), 0.5);
     expect(e.delay).toBe(1);
     expect(e.active).toBe(true);
   });

@@ -25,11 +25,11 @@ export interface WorldConfig {
 export const TRAIL_SIZE = 4096;
 /**
  * Прошлое игрока — по тику: x, z, прицел, оружие, флаги (1 — шёл, 2 — выстрелил).
- * Отголосок проигрывает его с задержкой ECHO_DELAY — точь-в-точь, включая выстрелы.
+ * Отголосок проигрывает его с задержкой ECHO_DELAY (1 с) — точь-в-точь, включая выстрелы.
  */
 export const PAST_SIZE = 1024;
 export const PAST_STRIDE = 5;
-export const ECHO_DELAY = 300;
+export const ECHO_DELAY = 60;
 export const MAX_ENEMIES = 64;
 const MAX_EVENTS = 512;
 
@@ -124,7 +124,7 @@ export class World {
       owned: WEAPONS.map((w) => cfg.night.startWeapons.includes(w.id)),
       cooldown: 0, reload: 0, dynamite: 3, throwCd: 0, stillT: 0, moving: false, invuln: 0,
       stepAcc: 0, reel: 0, holdingReel: false, inLight: true, lastNoiseT: -99, canReel: false,
-      focus: -1, focusHold: 0, actionPrev: false, holding: false, voiceCd: 0, battery: 1, fired: 0,
+      focus: -1, focusHold: 0, actionPrev: false, holding: false, voiceCd: 0, battery: 1, fired: 0, aimHold: 0,
     };
     this.doorOpen = this.statics.doorOpen;
     water.level = cfg.night.water?.from ?? WORLD.waterLevel;

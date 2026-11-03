@@ -105,12 +105,13 @@ export function echoFire(w: World, e: Enemy, weapon: number, yaw: number): void 
     const tStatic = w.statics.raycast(mx, mz, dx, dz, range);
     const t = rayCircle(mx, mz, dx, dz, p.x, p.z, PLAYER_R + 0.05);
     const hit = t >= 0 && t < tStatic && p.alive;
-    if (hit) dealt += wd.dmg * 0.35 * (wd.pellets > 1 ? Math.max(0.35, 1 - t / range) : 1);
+    if (hit) dealt += wd.dmg * 0.25 * (wd.pellets > 1 ? Math.max(0.35, 1 - t / range) : 1);
     const tEnd = hit ? t : tStatic;
     w.emit('tracer', mx, e.y + 1.15, mz, mx + dx * tEnd, mz + dz * tEnd, hit ? 4 : 3);
   }
   if (dealt > 0) {
-    damagePlayer(w, Math.min(30, dealt), e.x, e.z, 2);
+    // пули памяти слабее настоящих: не больше 10 за выстрел
+    damagePlayer(w, Math.min(10, dealt), e.x, e.z, 1.5);
     w.flags.add('echoShot');
   }
 }

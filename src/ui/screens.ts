@@ -47,6 +47,7 @@ export class Screens {
   readonly skipHint: HTMLElement;
   private readonly updateModal: HTMLElement;
   private updateText = '';
+  private beastClose: ((e: Event) => void) | null = null;
   private versionLabel = '';
   private installMode: 'none' | 'prompt' | 'ios' = 'none';
   /** Сброс прогресса — в два нажатия: первое спрашивает «точно?». */
@@ -239,6 +240,18 @@ export class Screens {
       onClose();
     };
     el.addEventListener('pointerdown', close);
+    this.beastClose = close;
+  }
+
+  /** Закрыть открытую записку или карточку (Esc). */
+  dismissCard(): void {
+    if (!this.noteModal.classList.contains('hidden')) {
+      show(this.noteModal, false);
+      const fn = this.onNoteClose;
+      fn();
+      return;
+    }
+    if (!this.beast.classList.contains('hidden')) this.beastClose?.(new Event('pointerdown'));
   }
 
   /** Список достижений: иконка и название окрашены по редкости, закрытые — тусклые. */

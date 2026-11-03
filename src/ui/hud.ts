@@ -33,9 +33,16 @@ export class Hud {
   private subT = 0;
   private toastT = 0;
   private sanityLie = 0;
+  /** Масштаб интерфейса (--ui из CSS), обновляется при смене размера окна. */
+  private zoom = 1;
 
   constructor(parent: HTMLElement, input: Input) {
     this.root = h('div', 'hud hidden', undefined, parent);
+    const readZoom = (): void => {
+      this.zoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui')) || 1;
+    };
+    readZoom();
+    window.addEventListener('resize', readZoom);
     const tl = h('div', 'hud-tl', undefined, this.root);
     this.clock = h('div', 'hud-clock', '22:00', tl);
     this.wave = h('div', 'hud-wave', '', tl);
@@ -88,10 +95,13 @@ export class Hud {
 
   setVisible(on: boolean): void {
     show(this.root, on);
+    if (!on) this.root.parentElement?.classList.remove('touch-ui');
   }
 
   setTouch(on: boolean): void {
     show(this.buttons, on);
+    // неподвижный правый стик виден всегда, пока играют пальцами
+    this.root.parentElement?.classList.toggle('touch-ui', on);
   }
 
   line(key: string, style: number): void {
@@ -133,8 +143,9 @@ export class Hud {
     const ang = Math.atan2(pt.y - cy, pt.x - cx);
     const r = Math.min(cx, cy) * 0.82;
     const mx = off ? cx + Math.cos(ang) * r : pt.x;
-    const my = off ? cy + Math.sin(ang) * r : pt.y - 40;
-    el.style.transform = `translate(${mx}px, ${my}px) rotate(${off ? ang + Math.PI / 2 : Math.PI}rad)`;
+    const my = off ? cy + Math.sin(ang) * r : pt.y - 40 * this.zoom;
+    // HUD увеличен через CSS zoom — экранные пиксели переводим в его единицы
+    el.style.transform = `translate(${mx / this.zoom}px, ${my / this.zoom}px) rotate(${off ? ang + Math.PI / 2 : Math.PI}rad)`;
   }
 
   update(w: World, dt: number, touch: boolean, hutScreen: { x: number; y: number }, goalScreen: { x: number; y: number } | null): void {

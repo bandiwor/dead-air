@@ -78,7 +78,11 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
     mz /= ml;
   }
   const moving = ml > 0.12 && !p.holdingReel && !p.holding;
-  const speed = SPEED * (inp.aiming ? 0.82 : 1) * (moving ? 1 : 0);
+  // «жёсткий» прицел — стик или зажатая кнопка мыши; только он замедляет шаг,
+  // и сильнее — когда пятитесь спиной вперёд
+  const hardAim = inp.aiming && (!inp.aimSoft || inp.fire);
+  const facing = moving ? (Math.cos(p.yaw) * mx + Math.sin(p.yaw) * mz) / Math.max(ml, 1e-6) : 1;
+  const speed = SPEED * (hardAim ? 0.86 + 0.08 * facing : 1) * (moving ? 1 : 0);
   p.vx = damp(p.vx, mx * speed, 14, dt);
   p.vz = damp(p.vz, mz * speed, 14, dt);
   p.kx = damp(p.kx, 0, 7, dt);
@@ -142,14 +146,25 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   }
 
   // --- прицел ---
+  // Куда смотрит персонаж:
+  //  • целитесь всерьёз (стик / кнопка мыши) — на прицел, быстро;
+  //  • ещё полсекунды после выстрела — тоже на прицел (не дёргается между очередями);
+  //  • просто идёте с наведённой мышью — по ходу движения;
+  //  • остановились — плавно, без рывка, разворачивается обратно к курсору.
   const al = Math.hypot(inp.ax, inp.az);
-  if (inp.aiming && al > 0.08) {
-    let yaw = Math.atan2(inp.az, inp.ax);
-    if (inp.assist) yaw = assistAim(w, yaw);
-    p.yaw = dampAngle(p.yaw, yaw, 30, dt);
-  } else if (moving) {
-    p.yaw = dampAngle(p.yaw, Math.atan2(mz, mx), 9, dt);
+  const hasAim = inp.aiming && al > 0.08;
+  let aimYaw = p.yaw;
+  if (hasAim) {
+    aimYaw = Math.atan2(inp.az, inp.ax);
+    if (inp.assist) aimYaw = assistAim(w, aimYaw);
   }
+  if (hasAim && hardAim) p.aimHold = 0.55;
+  else p.aimHold = Math.max(0, p.aimHold - dt);
+  if (hasAim && (hardAim || p.aimHold > 0)) p.yaw = dampAngle(p.yaw, aimYaw, 24, dt);
+  else if (moving) p.yaw = dampAngle(p.yaw, Math.atan2(mz, mx), 10, dt);
+  else if (hasAim) p.yaw = dampAngle(p.yaw, aimYaw, 3.2, dt);
+  // не стрелять «вбок», пока тело ещё доворачивается к прицелу
+  const aligned = !hasAim || Math.abs(wrapAngle(aimYaw - p.yaw)) < 0.35;
 
   // --- оружие ---
   const wd = WEAPONS[p.weapon]!;
@@ -174,6 +189,11 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
     }
     p.cooldown = Math.max(p.cooldown, 0.25);
     w.emit('swap', p.x, p.y, p.z, p.weapon);
+  } else if (inp.select >= 0 && inp.select !== p.weapon && p.owned[inp.select]) {
+    p.reload = 0;
+    p.weapon = inp.select;
+    p.cooldown = Math.max(p.cooldown, 0.25);
+    w.emit('swap', p.x, p.y, p.z, p.weapon);
   }
   const startReload = (): void => {
     const cur = WEAPONS[p.weapon]!;
@@ -184,7 +204,7 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   };
   if (inp.reload) startReload();
   // ребёнок во флешбэке безоружен
-  if (inp.fire && p.owned[p.weapon] && !p.holdingReel && !p.holding && p.cooldown <= 0 && p.reload <= 0) {
+  if (inp.fire && aligned && p.owned[p.weapon] && !p.holdingReel && !p.holding && p.cooldown <= 0 && p.reload <= 0) {
     if (p.mag[p.weapon]! > 0) {
       fireWeapon(w);
     } else if (p.reserve[p.weapon]! > 0) {

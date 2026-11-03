@@ -99,7 +99,7 @@ export class Game {
     root.appendChild(touch);
     this.input = new Input(touch);
     this.input.autofire = this.settings.autofire;
-    this.input.onPause = () => this.pause();
+    this.input.onPause = () => this.togglePause();
     this.amb = new Ambience(this.audio);
     this.hud = new Hud(touch, this.input);
     this.screens = new Screens(root, this.settings, {
@@ -522,9 +522,22 @@ export class Game {
     this.mode = 'pause';
     this.input.enabled = false;
     this.input.reset();
+    this.hud.setVisible(false);
     this.refreshJournal();
     this.screens.open('pause');
     this.offerUpdate();
+  }
+
+  /**
+   * Esc / P: открыть меню паузы или закрыть его. Из настроек, открытых в паузе, — назад в паузу.
+   * Записку и карточку существа Esc тоже закрывает (как кнопка «продолжить»).
+   */
+  private togglePause(): void {
+    if (this.mode === 'play' || this.mode === 'intro') this.pause();
+    else if (this.mode === 'pause') {
+      if (this.screens.current === 'settings') this.screens.open('pause');
+      else this.resume();
+    } else if (this.mode === 'note' || this.mode === 'beast') this.screens.dismissCard();
   }
 
   private resume(): void {
@@ -533,6 +546,7 @@ export class Game {
     void this.audio.resume();
     if (this.cut && !this.cut.done) {
       this.mode = 'intro';
+      this.hud.setVisible(true);
     } else {
       this.beginPlay();
     }

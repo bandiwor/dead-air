@@ -57,7 +57,7 @@ export function spawnEnemy(w: World, kind: Kind, x: number, z: number, fake = fa
       e.yaw = w.past[i + 2]!;
       e.tx = w.past[i + 3]!;
     }
-    e.atkCd = 1.5;
+    e.atkCd = 0.4;
     w.flags.add('echoSeen');
   }
   if (kind === Kind.Mute) w.flags.add('muteSeen');
@@ -290,9 +290,10 @@ function mute(w: World, e: Enemy, dist: number, dt: number): void {
 }
 
 /**
- * Отголосок — вы сами, ECHO_DELAY тиков (5 с) назад. Проигрывает записанное прошлое точь-в-точь:
+ * Отголосок — вы сами, ECHO_DELAY тиков (1 с) назад. Проигрывает записанное прошлое точь-в-точь:
  * тот же путь, тот же прицел, то же оружие, те же выстрелы — и они ранят вас нынешнего.
- * Встанете на месте — через 5 секунд прошлое придёт туда, где вы стоите.
+ * Стоите — прошлое догоняет и сливается с вами (без вреда). Пойдёте назад по своему следу —
+ * столкнётесь с собой, и это больно.
  */
 function echo(w: World, e: Enemy, dist: number, dt: number): void {
   const p = w.player;
@@ -316,12 +317,18 @@ function echo(w: World, e: Enemy, dist: number, dt: number): void {
     w.emit('echoStep', e.x, e.y, e.z);
   }
   if (flags & 2) echoFire(w, e, e.tx, e.yaw);
-  // прошлое догнало: удар — и Отголосок рассыпается
   if (dist < e.r + PLAYER_R + 0.15 && e.atkCd <= 0) {
-    damagePlayer(w, ENEMIES[Kind.Echo].dmg, e.x, e.z, 4);
-    w.flags.add('broke:3');
-    p.sanity = Math.max(0, p.sanity - 14);
-    w.emit('vanish', e.x, e.y, e.z, e.kind, 1);
+    if (p.stillT > 0.4) {
+      // вы стояли — прошлое догнало и вошло в вас: тихо, без вреда
+      w.flags.add('echoMerged');
+      w.emit('vanish', e.x, e.y, e.z, e.kind, 0);
+    } else {
+      // вы шли навстречу своему следу — столкнулись с собой
+      damagePlayer(w, ENEMIES[Kind.Echo].dmg, e.x, e.z, 4);
+      w.flags.add('broke:3');
+      p.sanity = Math.max(0, p.sanity - 14);
+      w.emit('vanish', e.x, e.y, e.z, e.kind, 1);
+    }
     e.active = false;
   }
 }
