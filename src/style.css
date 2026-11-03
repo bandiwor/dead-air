@@ -372,3 +372,53 @@ button {
 .beast-hint { color: var(--dim); font-size: 10px; letter-spacing: 0.2em; transition: opacity 0.4s; animation: blink 1.2s steps(2) infinite; }
 
 .hud.beastmode > * { display: none !important; }
+
+/* режим отладки */
+.dbg-btn {
+  position: absolute;
+  right: calc(60px + var(--safe-r));
+  top: calc(8px + var(--safe-t));
+  width: 46px;
+  height: 34px;
+  border: 1px solid #c86;
+  color: #fc8;
+  font-size: 11px;
+  z-index: 6;
+  pointer-events: auto;
+  background: rgba(5, 8, 11, 0.6);
+}
+.dbg-stats {
+  position: absolute;
+  left: calc(10px + var(--safe-l));
+  top: calc(96px + var(--safe-t));
+  font: 10px/1.35 var(--font);
+  color: #fc8;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 4px 6px;
+  pointer-events: none;
+  z-index: 6;
+  white-space: pre;
+}
+.dbg-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(420px, 62vw);
+  background: rgba(8, 8, 10, 0.94);
+  border-left: 1px solid #c86;
+  z-index: 7;
+  overflow-y: auto;
+  padding: calc(8px + var(--safe-t)) calc(10px + var(--safe-r)) 16px 10px;
+  touch-action: pan-y;
+}
+.dbg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.dbg-title { color: #fc8; letter-spacing: 0.3em; font-size: 12px; }
+.dbg-close { border: 1px solid #c86; color: #fc8; padding: 6px 10px; font-size: 11px; }
+.dbg-sec { color: var(--dim); font-size: 10px; letter-spacing: 0.2em; margin: 10px 0 4px; text-transform: uppercase; }
+.dbg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 4px; }
+.dbg-item { border: 1px solid rgba(255, 200, 140, 0.3); color: var(--ink); font-size: 11px; padding: 8px 6px; text-align: left; min-height: 36px; }
+.dbg-item.on { border-color: #fc8; color: #fc8; background: rgba(255, 200, 140, 0.08); }
+.dbg-item:active { background: rgba(255, 200, 140, 0.2); }
+.dbg-flags { font: 10px/1.4 var(--font); color: var(--dim); white-space: pre-wrap; margin-top: 10px; }
+.hud.dbg-hide > *:not(.btn-pause) { display: none !important; }

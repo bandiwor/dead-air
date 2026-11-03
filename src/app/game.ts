@@ -20,6 +20,7 @@ import { Updater, type UpdateStatus } from '../platform/updates';
 import { t } from '../i18n';
 import { handleEvents, nearestEnemy } from './events';
 import { BESTIARY } from '../content/bestiary';
+import { DevTools } from './devtools';
 
 type Mode = 'boot' | 'loading' | 'title' | 'intro' | 'play' | 'note' | 'beast' | 'pause' | 'dying' | 'dead' | 'dawn' | 'dawnScreen';
 
@@ -32,22 +33,23 @@ const TEX_SEED = 1953;
  */
 export class Game {
   private readonly canvas: HTMLCanvasElement;
+  private readonly root: HTMLElement;
   private settings: Settings;
-  private readonly audio = new AudioEngine();
+  readonly audio = new AudioEngine();
   private readonly amb: Ambience;
   private readonly input: Input;
-  private readonly hud: Hud;
+  readonly hud: Hud;
   private readonly screens: Screens;
-  private renderer: GameRenderer | null = null;
-  private world: World;
-  private mode: Mode = 'boot';
+  renderer: GameRenderer | null = null;
+  world: World;
+  mode: Mode = 'boot';
   private acc = 0;
   private last = 0;
   private attempt = 0;
   private cut: Cutscene | null = null;
   private readonly introSeen = new Set<number>();
-  private nightIdx = 0;
-  private progress: Progress = loadProgress();
+  nightIdx = 0;
+  progress: Progress = loadProgress();
   private menuT = 0;
   private modeT = 0;
   private readonly frame = emptyInput();
@@ -55,8 +57,15 @@ export class Game {
   private updateOffered = false;
   private readonly menuPos = new THREE.Vector3();
   private readonly menuLook = new THREE.Vector3(0, 2, 0);
+  /** Отладка: масштаб времени, пауза симуляции, шаг по одному тику. */
+  timeScale = 1;
+  simPaused = false;
+  private stepOnce = false;
+  private dev: DevTools | null = null;
+  private statsT = 0;
 
   constructor(root: HTMLElement) {
+    this.root = root;
     this.settings = loadSettings();
     setVibration(this.settings.vibration);
     this.canvas = document.createElement('canvas');
@@ -154,6 +163,7 @@ export class Game {
     this.renderer.fx.flashScale = this.settings.reduceFlashes ? 0.35 : 1;
     this.renderer.invertFlash = !this.settings.reduceFlashes;
     this.renderer.resize();
+    this.setDebug(this.settings.debug);
     this.audio.setVolume(this.settings.volume);
     this.amb.start();
     this.screens.setLoading('ui.loading.world', 1);
@@ -168,6 +178,7 @@ export class Game {
     setVibration(s.vibration);
     this.input.autofire = s.autofire;
     this.audio.setVolume(s.volume);
+    this.setDebug(s.debug);
     if (this.renderer) {
       this.renderer.fx.flashScale = s.reduceFlashes ? 0.35 : 1;
       this.renderer.invertFlash = !s.reduceFlashes;
@@ -176,6 +187,21 @@ export class Game {
         this.renderer.resize();
       }
     }
+  }
+
+  /** Режим отладки: панель, оверлей, доступ из консоли (window.__game). */
+  private setDebug(on: boolean): void {
+    if (on && !this.dev && this.renderer) this.dev = new DevTools(this, this.root);
+    this.dev?.setEnabled(on);
+    if (on) (window as unknown as { __game: Game }).__game = this;
+    else {
+      this.timeScale = 1;
+      this.simPaused = false;
+    }
+  }
+
+  requestStep(): void {
+    this.stepOnce = true;
   }
 
   private onUpdateStatus(st: UpdateStatus): void {
@@ -205,7 +231,7 @@ export class Game {
     if (this.renderer) this.renderer.fade = 0;
   }
 
-  private startNight(): void {
+  startNight(): void {
     if (!this.renderer) return;
     this.attempt++;
     this.world = this.makeWorld();
@@ -253,7 +279,7 @@ export class Game {
     this.screens.setJournal(rules, notes, heard);
   }
 
-  private refreshNights(): void {
+  refreshNights(): void {
     this.screens.setNights(NIGHTS.map((n) => n.titleKey), this.progress.unlocked);
   }
 
@@ -278,25 +304,32 @@ export class Game {
       if (d > 13 || e.fade < 0.6 || !(e.litAny || d < 5)) continue;
       this.progress.seen.push(e.kind);
       saveProgress(this.progress);
-      this.mode = 'beast';
-      this.input.enabled = false;
-      this.input.reset();
-      this.renderer?.startShowcase(e.kind);
-      this.hud.root.classList.add('beastmode');
-      this.audio.duck(3);
-      this.audio.play('tapestop', { bus: 'ui', vol: 0.9, reverb: 0.2 });
-      this.audio.play('sting', { bus: 'ui', vol: 0.35, rate: 0.55, delay: 0.35, reverb: 0.4 });
-      this.screens.showBeast(t(card.name), t(card.desc), t(card.tip), () => {
-        this.renderer?.stopShowcase();
-        this.hud.root.classList.remove('beastmode');
-        if (this.mode !== 'beast') return;
-        this.mode = 'play';
-        this.input.enabled = true;
-        this.input.reset();
-        this.acc = 0;
-      });
+      this.showBeastCard(e.kind);
       return;
     }
+  }
+
+  /** Стоп-кадр с карточкой существа (вызывается и из отладки). */
+  showBeastCard(kind: number): void {
+    const card = BESTIARY[kind as keyof typeof BESTIARY];
+    if (!card || this.mode !== 'play') return;
+    this.mode = 'beast';
+    this.input.enabled = false;
+    this.input.reset();
+    this.renderer?.startShowcase(kind);
+    this.hud.root.classList.add('beastmode');
+    this.audio.duck(3);
+    this.audio.play('tapestop', { bus: 'ui', vol: 0.9, reverb: 0.2 });
+    this.audio.play('sting', { bus: 'ui', vol: 0.35, rate: 0.55, delay: 0.35, reverb: 0.4 });
+    this.screens.showBeast(t(card.name), t(card.desc), t(card.tip), () => {
+      this.renderer?.stopShowcase();
+      this.hud.root.classList.remove('beastmode');
+      if (this.mode !== 'beast') return;
+      this.mode = 'play';
+      this.input.enabled = true;
+      this.input.reset();
+      this.acc = 0;
+    });
   }
 
   /** Записка: игра стоит, пока её читают. */
@@ -352,14 +385,23 @@ export class Game {
     const w = this.world;
 
     if (this.mode === 'play' || this.mode === 'dying') {
-      this.acc += dt;
+      const maxSteps = Math.ceil(6 * this.timeScale);
+      if (this.simPaused) {
+        this.acc = 0;
+        if (this.stepOnce) {
+          this.stepOnce = false;
+          w.step(this.input.sample(this.frame), STEP);
+        }
+      } else {
+        this.acc += dt * this.timeScale;
+      }
       let steps = 0;
-      while (this.acc >= STEP && steps < 6) {
+      while (this.acc >= STEP && steps < maxSteps) {
         w.step(this.input.sample(this.frame), STEP);
         this.acc -= STEP;
         steps++;
       }
-      if (steps === 6) this.acc = 0;
+      if (steps === maxSteps) this.acc = 0;
       r.followCamera(w, dt);
       if (this.mode === 'play') this.checkBestiary();
     } else if (this.mode === 'intro' || this.mode === 'dawn') {
@@ -453,6 +495,13 @@ export class Game {
       },
       dt,
     );
+    if (this.dev) {
+      this.statsT -= dt;
+      if (this.statsT <= 0) {
+        this.statsT = 0.25;
+        this.dev.updateStats();
+      }
+    }
     const ps = r.project(p.x, p.y + 1, p.z);
     this.input.playerScreen = ps;
     if (this.mode === 'play' || this.mode === 'note' || this.mode === 'beast' || this.mode === 'intro' || this.mode === 'dawn') {

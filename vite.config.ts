@@ -67,6 +67,8 @@ export default defineConfig({
   },
   test: {
     include: ['tests/**/*.test.ts'],
+    // полные прогоны ночей ботом занимают несколько секунд
+    testTimeout: 30000,
     environment: 'node',
   },
 } as never);

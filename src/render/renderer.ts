@@ -9,6 +9,7 @@ import { Fx } from './fx';
 import { PostPass } from './post';
 import { shared } from './materials';
 import { Showcase } from './showcase';
+import { DebugDraw } from './debugDraw';
 
 export interface CameraShot {
   pos: THREE.Vector3;
@@ -45,6 +46,10 @@ export class GameRenderer {
   baseFog = 0.03;
   private rt: THREE.WebGLRenderTarget;
   readonly showcase: Showcase;
+  readonly debugDraw: DebugDraw;
+  /** Отладка: отдаление камеры (0 — обычно) и статистика последнего кадра. */
+  debugZoom = 0;
+  readonly stats = { calls: 0, triangles: 0, frameMs: 16, width: 0, height: 0, programs: 0, textures: 0, geometries: 0 };
   /** 0..1 — проявление стоп-кадра. */
   private showT = 0;
   private showOn = false;
@@ -79,6 +84,7 @@ export class GameRenderer {
     this.gl.outputColorSpace = THREE.SRGBColorSpace;
     this.rt = this.makeTarget(640, 360);
     this.showcase = new Showcase(tex, this.rt.texture.type);
+    this.debugDraw = new DebugDraw(w);
 
     this.fog = new THREE.FogExp2(COLORS.fog, 0.03);
     this.scene.fog = this.fog;
@@ -105,6 +111,7 @@ export class GameRenderer {
 
     this.view = buildWorldView(w.layout, tex, quality);
     this.scene.add(this.view.root);
+    this.scene.add(this.debugDraw.group);
     this.actors = new ActorsView(tex);
     this.scene.add(this.actors.root);
     this.fx = new Fx(quality);
@@ -186,7 +193,8 @@ export class GameRenderer {
     this.camLook.x = damp(this.camLook.x, tx, 4, dt);
     this.camLook.y = damp(this.camLook.y, ty + 0.5, 4, dt);
     this.camLook.z = damp(this.camLook.z, tz, 4, dt);
-    this.camPos.set(this.camLook.x, this.camLook.y + 15 - this.zoom * 6.5, this.camLook.z + 9.8 - this.zoom * 4.6);
+    const far = 1 + this.debugZoom;
+    this.camPos.set(this.camLook.x, this.camLook.y + (15 - this.zoom * 6.5) * far, this.camLook.z + (9.8 - this.zoom * 4.6) * far);
     this.camera.fov = damp(this.camera.fov, 42, 3, dt);
   }
 
@@ -335,9 +343,19 @@ export class GameRenderer {
       this.gl.setClearColor(0x000000, 1);
     }
     if (!this.showOn) {
+      this.debugDraw.update(w);
       this.gl.setRenderTarget(this.rt);
       this.gl.render(this.scene, this.camera);
+      const info = this.gl.info;
+      this.stats.calls = info.render.calls;
+      this.stats.triangles = info.render.triangles;
+      this.stats.programs = info.programs?.length ?? 0;
+      this.stats.textures = info.memory.textures;
+      this.stats.geometries = info.memory.geometries;
+      this.stats.width = this.rt.width;
+      this.stats.height = this.rt.height;
     }
+    this.stats.frameMs = this.stats.frameMs * 0.9 + dt * 1000 * 0.1;
     this.gl.setRenderTarget(null);
     u.tScene.value = this.rt.texture;
     u.tShow.value = this.showcase.rt.texture;

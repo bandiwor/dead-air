@@ -91,6 +91,11 @@ export function updateEnemies(w: World, dt: number): void {
     e.litAny = e.litTorch || nearFlare < 6.5 || nearPole;
     e.litTime = e.litTorch ? e.litTime + dt : Math.max(0, e.litTime - dt * 2);
 
+    // отладка: враги замирают (свет и видимость считаются как обычно)
+    if (w.cheats.freeze) {
+      e.vx = e.vz = 0;
+      continue;
+    }
     switch (e.kind) {
       case Kind.Whisperer:
         whisperer(w, e, dist, nearFlare, dt);

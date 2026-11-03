@@ -68,6 +68,8 @@ export class World {
   intensity = 0;
   readonly flags = new Set<string>();
   private nextEnemyId = 1;
+  /** Читы режима отладки. В обычной игре всегда выключены. */
+  readonly cheats = { god: false, ammo: false, freeze: false };
 
   /** Двери домов и свет в окнах (меняются сценарием). */
   readonly doorOpen: boolean[];

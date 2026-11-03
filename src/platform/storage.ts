@@ -11,6 +11,8 @@ export interface Settings {
   autofire: boolean;
   volume: number;
   disclaimerAccepted: boolean;
+  /** Режим отладки: оверлей статистики, панель читов, отрисовка коллизий. */
+  debug: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -22,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autofire: true,
   volume: 0.9,
   disclaimerAccepted: false,
+  debug: false,
 };
 
 const KEY = 'dead-air:settings';
@@ -46,6 +49,7 @@ export function loadSettings(): Settings {
       autofire: bool(o.autofire, d.autofire),
       volume: num(o.volume, 0, 1, d.volume),
       disclaimerAccepted: bool(o.disclaimerAccepted, false),
+      debug: bool(o.debug, false),
     };
   } catch {
     return { ...DEFAULT_SETTINGS, quality: guessQuality() };

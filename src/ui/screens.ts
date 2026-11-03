@@ -299,6 +299,7 @@ export class Screens {
     row('settings.autofire', onoff(s.autofire), () => (s.autofire = !s.autofire));
     row('settings.quality', t(`settings.quality.${s.quality}` as StrKey), () => (s.quality = (s.quality + 1) % 3));
     row('settings.volume', `${Math.round(s.volume * 100)}%`, () => (s.volume = s.volume >= 1 ? 0 : Math.round((s.volume + 0.2) * 10) / 10));
+    row('settings.debug', onoff(s.debug), () => (s.debug = !s.debug));
     const upd = h('button', 'setting', undefined, box);
     h('span', '', t('settings.updates'), upd);
     h('span', 'val', this.updateText, upd);

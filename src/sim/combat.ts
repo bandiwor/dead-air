@@ -11,7 +11,7 @@ const hits: { e: Enemy; t: number }[] = [];
 export function fireWeapon(w: World): void {
   const p = w.player;
   const wd = WEAPONS[p.weapon]!;
-  p.mag[p.weapon]! -= 1;
+  if (!w.cheats.ammo) p.mag[p.weapon]! -= 1;
   p.cooldown = wd.rate;
   const mx = p.x + Math.cos(p.yaw) * MUZZLE;
   const mz = p.z + Math.sin(p.yaw) * MUZZLE;
@@ -120,7 +120,7 @@ export function killEnemy(w: World, e: Enemy, explosive: boolean): void {
 
 export function damagePlayer(w: World, dmg: number, fromX: number, fromZ: number, knock: number): void {
   const p = w.player;
-  if (!p.alive || p.invuln > 0) return;
+  if (!p.alive || p.invuln > 0 || w.cheats.god) return;
   p.hp -= dmg;
   p.invuln = 0.35;
   p.sanity = Math.max(0, p.sanity - dmg * 0.18);
