@@ -13,6 +13,19 @@ interface Stick {
   knob: HTMLElement;
 }
 
+const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
+
+/** Буква → физическая клавиша, если браузер не прислал code (удалённый рабочий стол, экранная клавиатура). */
+const BY_KEY: Record<string, string> = {
+  w: 'KeyW', a: 'KeyA', s: 'KeyS', d: 'KeyD', e: 'KeyE', q: 'KeyQ', g: 'KeyG', r: 'KeyR', f: 'KeyF',
+  ц: 'KeyW', ф: 'KeyA', ы: 'KeyS', в: 'KeyD', у: 'KeyE', й: 'KeyQ', п: 'KeyG', к: 'KeyR', а: 'KeyF',
+};
+
+export function keyCode(e: { code: string; key: string }): string {
+  if (e.code && e.code !== 'Unidentified') return e.code;
+  return BY_KEY[e.key.toLowerCase()] ?? e.key;
+}
+
 export type ButtonId = 'action' | 'swap' | 'throw' | 'reload' | 'voice' | 'pause';
 
 /**
@@ -46,20 +59,31 @@ export class Input {
     root.addEventListener('pointerup', (e) => this.up(e));
     root.addEventListener('pointercancel', (e) => this.up(e));
     window.addEventListener('keydown', (e) => {
+      const code = keyCode(e);
+      // удержание всегда обновляет состояние (если отпускание потерялось — оно восстановится);
+      // одиночные нажатия срабатывают только на первом событии
+      this.keys.add(code);
+      if (this.enabled && MOVE_KEYS.has(code)) e.preventDefault();
       if (e.repeat) return;
-      this.keys.add(e.code);
-      if (e.code === 'KeyQ') this.edges.swap = true;
-      if (e.code === 'KeyG') this.edges.throw = true;
-      if (e.code === 'KeyR') this.edges.reload = true;
-      if (e.code === 'KeyF') this.edges.voice = true;
-      if (e.code === 'KeyE' || e.code === 'Space') this.edges.action = true;
-      if (e.code === 'Escape') this.onPause();
+      if (code === 'KeyQ') this.edges.swap = true;
+      if (code === 'KeyG') this.edges.throw = true;
+      if (code === 'KeyR') this.edges.reload = true;
+      if (code === 'KeyF') this.edges.voice = true;
+      if (code === 'KeyE' || code === 'Space') this.edges.action = true;
+      if (code === 'Escape') this.onPause();
     });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => {
+    window.addEventListener('keyup', (e) => {
+      this.keys.delete(keyCode(e));
+      this.keys.delete(e.code);
+    });
+    // отпускание клавиши вне окна не приходит: всё, что было зажато, считаем отпущенным
+    const release = (): void => {
       this.keys.clear();
       this.mouse.down = false;
-    });
+    };
+    window.addEventListener('blur', release);
+    document.addEventListener('visibilitychange', release);
+    document.addEventListener('fullscreenchange', release);
     window.addEventListener('wheel', () => (this.edges.swap = true), { passive: true });
   }
 

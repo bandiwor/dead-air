@@ -458,6 +458,17 @@ interface HumanoidSpec {
   armLen?: number;
   headTilt?: number;
   flashlight?: boolean;
+  /** Керосиновая лампа в опущенной левой руке (ребёнок). */
+  lantern?: boolean;
+}
+
+/** Брусок от точки a до точки b (рука, ствол): длинная ось бруска — вдоль отрезка. */
+function segment(b: Builder, a: [number, number, number], c: [number, number, number], w: number, d: number, o: Omit<PartOpts, 'pos' | 'rot'>): void {
+  const dir = new THREE.Vector3(c[0] - a[0], c[1] - a[1], c[2] - a[2]);
+  const len = dir.length();
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  const e = new THREE.Euler().setFromQuaternion(q);
+  b.box(w, len, d, { ...o, pos: [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2], rot: [e.x, e.y, e.z] });
 }
 
 export function humanoidGeometry(s: HumanoidSpec): THREE.BufferGeometry {
@@ -470,15 +481,43 @@ export function humanoidGeometry(s: HumanoidSpec): THREE.BufferGeometry {
   for (const side of [-1, 1]) {
     b.box(0.16 * thin, 0.86 * k, 0.17, { pos: [side * 0.11, hip - 0.43 * k, 0], color: s.pants, limb: [side * 0.11, hip, 0, side > 0 ? 0 : Math.PI], limbW: 1 });
     b.box(0.17 * thin, 0.08, 0.26, { pos: [side * 0.11, 0.04, 0.05], color: 0x1c1a18, limb: [side * 0.11, hip, 0, side > 0 ? 0 : Math.PI], limbW: 1 });
-    b.box(0.12 * thin, armLen, 0.13, { pos: [side * 0.29 * thin, sh - armLen / 2, 0], color: s.coat, limb: [side * 0.29, sh, 0, side > 0 ? Math.PI : 0], limbW: 0.75 });
-    b.box(0.1, 0.12, 0.11, { pos: [side * 0.29 * thin, sh - armLen - 0.04, 0], color: s.skin, limb: [side * 0.29, sh, 0, side > 0 ? Math.PI : 0], limbW: 0.75 });
+    // с оружием руки вытянуты вперёд и не болтаются; у ребёнка лампа — в опущенной левой руке
+    if (s.flashlight) continue;
+    const limb: [number, number, number, number] = [side * 0.29, sh, 0, side > 0 ? Math.PI : 0];
+    b.box(0.12 * thin, armLen, 0.13, { pos: [side * 0.29 * thin, sh - armLen / 2, 0], color: s.coat, limb, limbW: 0.75 });
+    b.box(0.1, 0.12, 0.11, { pos: [side * 0.29 * thin, sh - armLen - 0.04, 0], color: s.skin, limb, limbW: 0.75 });
+    if (s.lantern && side < 0) {
+      // керосиновая лампа: дужка, колба, донце — висит под кистью и качается вместе с рукой
+      const y = sh - armLen - 0.12;
+      const x = side * 0.29 * thin;
+      b.box(0.02, 0.1, 0.02, { pos: [x, y, 0], color: 0x2a2a26, limb, limbW: 0.75 });
+      b.box(0.13, 0.03, 0.13, { pos: [x, y - 0.06, 0], color: 0x3a3428, limb, limbW: 0.75 });
+      b.box(0.1, 0.13, 0.1, { pos: [x, y - 0.14, 0], color: 0xffc070, limb, limbW: 0.75 });
+      b.box(0.14, 0.03, 0.14, { pos: [x, y - 0.22, 0], color: 0x3a3428, limb, limbW: 0.75 });
+    }
   }
   b.box(0.48 * thin, 0.66 * k, 0.27, { pos: [0, (hip + sh) / 2 + 0.04, 0], color: s.coat, jitter: 0.1 });
   b.box(0.27, 0.3 * k, 0.27, { pos: [0, sh + 0.21 * k, 0.01], rot: [0, 0, s.headTilt ?? 0], color: s.skin });
   if (s.flashlight) {
-    // фонарь и оружие в руках — вытянуты вперёд
-    b.box(0.08, 0.08, 0.36, { pos: [0.2, 1.2 * k, 0.34], color: 0x222220 });
-    b.box(0.07, 0.07, 0.26, { pos: [-0.12, 1.15 * k, 0.32], color: 0x40403c });
+    // хват двумя руками: правая держит оружие, левая подводит фонарь под ствол
+    const shR: [number, number, number] = [0.27 * thin, sh - 0.04, 0];
+    const shL: [number, number, number] = [-0.27 * thin, sh - 0.04, 0];
+    const handR: [number, number, number] = [0.1, 1.2 * k, 0.4];
+    const handL: [number, number, number] = [-0.02, 1.12 * k, 0.36];
+    const elbowR: [number, number, number] = [0.26, 1.18 * k, 0.12];
+    const elbowL: [number, number, number] = [-0.24, 1.1 * k, 0.12];
+    segment(b, shR, elbowR, 0.12, 0.13, { color: s.coat });
+    segment(b, elbowR, handR, 0.11, 0.12, { color: s.coat });
+    segment(b, shL, elbowL, 0.12, 0.13, { color: s.coat });
+    segment(b, elbowL, handL, 0.11, 0.12, { color: s.coat });
+    b.box(0.1, 0.1, 0.11, { pos: handR, color: s.skin });
+    b.box(0.1, 0.1, 0.11, { pos: handL, color: s.skin });
+    // оружие: рукоять в правой кисти, ствол вперёд
+    b.box(0.06, 0.13, 0.07, { pos: [handR[0], handR[1] + 0.02, handR[2] + 0.02], rot: [0.25, 0, 0], color: 0x2a2622 });
+    b.box(0.07, 0.08, 0.38, { pos: [handR[0], handR[1] + 0.09, handR[2] + 0.17], color: 0x222220 });
+    // фонарь: корпус в левой кисти, под стволом; светлое стекло спереди
+    b.box(0.07, 0.07, 0.24, { pos: [handL[0] + 0.03, handL[1] + 0.02, handL[2] + 0.12], color: 0x40403c });
+    b.box(0.09, 0.09, 0.03, { pos: [handL[0] + 0.03, handL[1] + 0.02, handL[2] + 0.25], color: 0xfff0c8 });
   }
   return b.build();
 }

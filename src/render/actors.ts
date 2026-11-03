@@ -59,7 +59,7 @@ export class ActorsView {
     const coat = new THREE.MeshLambertMaterial({ map: tex.cloth, vertexColors: true });
     coat.color.setScalar(1.8);
     this.player = herd(humanoidGeometry({ height: 1.8, coat: 0x3a3a34, skin: 0x9a8270, pants: 0x262624, flashlight: true }), coat, 1);
-    this.child = herd(humanoidGeometry({ height: 1.25, coat: 0x4a3e30, skin: 0xa88a74, pants: 0x2a2620, thin: 0.85 }), coat, 1);
+    this.child = herd(humanoidGeometry({ height: 1.25, coat: 0x4a3e30, skin: 0xa88a74, pants: 0x2a2620, thin: 0.85, lantern: true }), coat, 1);
     const skin = (k: number): THREE.MeshLambertMaterial => {
       const m = new THREE.MeshLambertMaterial({ map: tex.skin, vertexColors: true });
       m.color.setScalar(k);

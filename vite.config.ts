@@ -52,9 +52,46 @@ function versionPlugin(): Plugin {
   };
 }
 
+/**
+ * Вписывает в точку входа список тяжёлых файлов (всё, что грузится через import())
+ * с их размерами — загрузчик показывает честный прогресс «N% (n/N KB)».
+ */
+function chunkManifestPlugin(): Plugin {
+  return {
+    name: 'dead-air-chunk-manifest',
+    apply: 'build',
+    generateBundle(_opts, bundle) {
+      const chunks = Object.values(bundle).filter((c) => c.type === 'chunk');
+      const byName = new Map(chunks.map((c) => [c.fileName, c]));
+      const entry = chunks.find((c) => c.isEntry);
+      if (!entry) return;
+      const lazy = new Set<string>();
+      const visit = (file: string): void => {
+        if (lazy.has(file) || file === entry.fileName) return;
+        const c = byName.get(file);
+        if (!c) return;
+        lazy.add(file);
+        c.imports.forEach(visit);
+      };
+      entry.dynamicImports.forEach(visit);
+      const list = [...lazy].map((f) => [f, Buffer.byteLength(byName.get(f)!.code)]);
+      const re = /(["'`])__DEAD_AIR_CHUNKS__\1/;
+      if (!re.test(entry.code)) this.error('chunk manifest placeholder not found in entry');
+      entry.code = entry.code.replace(re, JSON.stringify(list));
+    },
+  };
+}
+
+/** Целевые браузеры для lightningcss (major << 16). */
+const CSS_TARGETS = { chrome: 100 << 16, safari: (15 << 16) | (4 << 8), firefox: 102 << 16, edge: 100 << 16 };
+
 export default defineConfig({
   base: './',
-  plugins: [cspPlugin(), versionPlugin()],
+  plugins: [cspPlugin(), versionPlugin(), chunkManifestPlugin()],
+  css: {
+    transformer: 'lightningcss',
+    lightningcss: { targets: CSS_TARGETS },
+  },
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -64,6 +101,41 @@ export default defineConfig({
     assetsInlineLimit: 0,
     sourcemap: false,
     chunkSizeWarningLimit: 900,
+    cssMinify: 'lightningcss',
+    // terser: максимальное сжатие без «небезопасных» преобразований, которые ломают Three.js
+    minify: 'terser',
+    terserOptions: {
+      ecma: 2020,
+      module: true,
+      toplevel: true,
+      compress: {
+        passes: 3,
+        ecma: 2020,
+        module: true,
+        toplevel: true,
+        pure_getters: 'strict',
+        drop_debugger: true,
+        pure_funcs: ['console.debug'],
+        reduce_funcs: true,
+        reduce_vars: true,
+        hoist_props: true,
+        join_vars: true,
+        collapse_vars: true,
+        sequences: true,
+        booleans: true,
+        unused: true,
+      },
+      mangle: { toplevel: true, module: true },
+      format: { comments: false, ecma: 2020, ascii_only: false },
+    },
+    rollupOptions: {
+      output: {
+        // Three.js — отдельным файлом: меняется редко, кэшируется надолго
+        codeSplitting: {
+          groups: [{ name: 'three', test: /node_modules[\\/]three/ }],
+        },
+      },
+    },
   },
   test: {
     include: ['tests/**/*.test.ts'],

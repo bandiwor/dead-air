@@ -311,7 +311,11 @@ export class GameRenderer {
     // фонарь
     const dx = Math.cos(p.yaw);
     const dz = Math.sin(p.yaw);
-    this.flashlight.position.set(p.x + dx * 0.4, p.y + 1.35, p.z + dz * 0.4);
+    // луч выходит из стекла фонаря в руках (у ребёнка — из лампы у колена)
+    const child = !!w.cfg.night.child;
+    const lx = child ? -Math.sin(p.yaw) * -0.25 : 0;
+    const lz = child ? Math.cos(p.yaw) * -0.25 : 0;
+    this.flashlight.position.set(p.x + dx * (child ? 0.15 : 0.62) + lx, p.y + (child ? 0.62 : 1.16), p.z + dz * (child ? 0.15 : 0.62) + lz);
     this.flashlight.target.position.set(p.x + dx * 9, groundAt(p.x + dx * 9, p.z + dz * 9), p.z + dz * 9);
     // лёгкое дрожание луча при низком рассудке
     this.flicker = Math.max(0, this.flicker - dt);
@@ -321,7 +325,7 @@ export class GameRenderer {
     const tf = torchFactor(w);
     this.flashlight.intensity = this.flashlightOn && p.alive ? 160 * flick * tf : 0;
     this.flashlight.distance = 28 * tf;
-    this.aura.position.set(p.x, p.y + 1.6, p.z);
+    this.aura.position.set(p.x, p.y + (child ? 0.9 : 1.6), p.z);
     this.aura.intensity = this.flashlightOn ? (w.cfg.night.child ? 9 : 5) : 0;
     this.hemi.intensity = damp(this.hemi.intensity, this.cinematic ? 1.7 : 0.85, 2, dt);
     this.moon.intensity = damp(this.moon.intensity, this.cinematic ? 0.9 : 0.32, 2, dt);
