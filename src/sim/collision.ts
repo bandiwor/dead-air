@@ -59,6 +59,8 @@ export class Statics {
   /** Двери домов: закрытая дверь — препятствие. */
   readonly doors: Box[];
   readonly doorOpen: boolean[];
+  /** Контуры построек целиком — для обхода врагами (их не видно сквозь срубы). */
+  readonly footprints: Box[];
 
   constructor(layout: Layout) {
     const n = layout.trees.length;
@@ -77,6 +79,7 @@ export class Statics {
     this.cells = buckets.map((b) => Int32Array.from(b));
     this.boxes = [...layout.houses.flatMap((h) => houseWalls(h)), boxOf(layout.hut)];
     this.doors = layout.houses.map((h) => doorBox(h));
+    this.footprints = [...layout.houses.map((h) => boxOf(h)), boxOf(layout.hut)];
     this.doorOpen = layout.houses.map(() => false);
     this.poles = [{ x: layout.pole.x, z: layout.pole.z, r: 0.3 }];
     for (const it of INTERIORS) {
@@ -156,6 +159,63 @@ export class Statics {
     }
     return best;
   }
+}
+
+/**
+ * Обход построек: если прямая к цели упирается в сруб, вернуть ближайший свободный угол
+ * (расширенный на радиус), через который путь короче. Иначе — саму цель.
+ * skip — индекс постройки, внутри которой цель (туда идут через дверь, а не вокруг).
+ */
+export function steerAround(st: Statics, x: number, z: number, tx: number, tz: number, r: number, skip: number): [number, number] {
+  const dx = tx - x;
+  const dz = tz - z;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.5) return [tx, tz];
+  const ux = dx / dist;
+  const uz = dz / dist;
+  let hitI = -1;
+  let hitT = dist;
+  for (let i = 0; i < st.footprints.length; i++) {
+    if (i === skip) continue;
+    const t = rayBox(x, z, ux, uz, inflate(st.footprints[i]!, r * 0.9));
+    if (t >= 0 && t < hitT) {
+      hitT = t;
+      hitI = i;
+    }
+  }
+  if (hitI < 0) return [tx, tz];
+  const b = inflate(st.footprints[hitI]!, r + 0.5);
+  let best: [number, number] = [tx, tz];
+  let bestLen = Infinity;
+  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+    const lx = sx * b.hw;
+    const lz = sz * b.hd;
+    const cx = b.cx + lx * b.c + lz * b.s;
+    const cz = b.cz - lx * b.s + lz * b.c;
+    // угол должен быть виден напрямую (не сквозь этот же сруб)
+    const ex = cx - x;
+    const ez = cz - z;
+    const el = Math.hypot(ex, ez);
+    if (el < 0.3) continue;
+    const t = rayBox(x, z, ex / el, ez / el, inflate(st.footprints[hitI]!, r * 0.5));
+    if (t >= 0 && t < el - 0.2) continue;
+    // из угла цель должна быть видна; иначе — штраф (придётся огибать дальше)
+    const fx = tx - cx;
+    const fz = tz - cz;
+    const fl = Math.hypot(fx, fz) || 1;
+    const tf = rayBox(cx, cz, fx / fl, fz / fl, inflate(st.footprints[hitI]!, r * 0.5));
+    const blocked = tf >= 0 && tf < fl - 0.2;
+    const len = el + fl + (blocked ? (b.hw + b.hd) * 2 : 0);
+    if (len < bestLen) {
+      bestLen = len;
+      best = [cx, cz];
+    }
+  }
+  return best;
+}
+
+function inflate(b: Box, d: number): Box {
+  return { cx: b.cx, cz: b.cz, hw: b.hw + d, hd: b.hd + d, c: b.c, s: b.s };
 }
 
 export function pushCircle(pos: { x: number; z: number }, r: number, cx: number, cz: number, cr: number): boolean {

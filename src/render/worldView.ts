@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Rng } from '../core/rng';
 import { distToSegment, smoothstep } from '../core/math';
-import { WORLD, heightAt } from '../proc/terrain';
+import { WORLD, heightAt, padHeight } from '../proc/terrain';
 import type { Layout } from '../proc/layout';
 import { fbm } from '../proc/noise';
 import type { TextureSet } from './textures';
@@ -202,7 +202,7 @@ export function buildWorldView(layout: Layout, tex: TextureSet, quality: number)
   const furnParts: THREE.BufferGeometry[] = [];
   const houseY: number[] = [];
   for (const h of allHouses) {
-    const y = heightAt(h.x, h.z) + 0.04;
+    const y = padHeight(h.x, h.z);
     const isHut = h === layout.hut;
     const parts = houseGeometry(h.w, h.d, h.h, 100 + h.id, isHut, !isHut);
     wallParts.push(place(parts.walls, h.x, h.z, h.rot, y));

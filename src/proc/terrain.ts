@@ -1,5 +1,6 @@
 import { distToSegment, lerp, smoothstep } from '../core/math';
 import { fbm } from './noise';
+import { HOUSE_SITES, HUT_SITE } from './sites';
 
 /**
  * Авторская топология мира (фиксирована — игрок её выучивает).
@@ -30,7 +31,7 @@ export function onPier(x: number, z: number): boolean {
   return x >= p.x0 && x <= p.x1 && z >= p.z0 && z <= p.z1;
 }
 
-export function heightAt(x: number, z: number): number {
+function rawHeight(x: number, z: number): number {
   let h = (fbm(x * 0.035 + 100, z * 0.035 + 100, 7, 4) - 0.5) * 3.2;
   h += (fbm(x * 0.13, z * 0.13, 11, 2) - 0.5) * 0.5;
 
@@ -72,4 +73,32 @@ export function surfaceAt(x: number, z: number): number {
   if (h < WORLD.waterLevel + 0.6) return 3;
   if (Math.hypot(x, z) < 11) return 2;
   return 0;
+}
+
+/**
+ * Площадки под срубами выровнены: пол дома лежит ровно, земля не прорастает сквозь доски,
+ * а высота, по которой ходит игрок, совпадает с полом.
+ */
+const PADS = [...HOUSE_SITES, HUT_SITE].map((h) => ({
+  x: h.x,
+  z: h.z,
+  r: Math.hypot(h.w, h.d) / 2 + 0.4,
+  y: rawHeight(h.x, h.z),
+}));
+
+export function heightAt(x: number, z: number): number {
+  let h = rawHeight(x, z);
+  for (const p of PADS) {
+    const dx = x - p.x;
+    const dz = z - p.z;
+    const r = p.r + 2;
+    if (dx * dx + dz * dz > r * r) continue;
+    h = lerp(h, p.y, smoothstep(p.r + 2, p.r, Math.sqrt(dx * dx + dz * dz)));
+  }
+  return h;
+}
+
+/** Высота пола дома (для рендера): та же, что у выровненной площадки. */
+export function padHeight(x: number, z: number): number {
+  return rawHeight(x, z);
 }

@@ -12,7 +12,8 @@ export function hash2(x: number, y: number, seed: number): number {
 const mod = (a: number, p: number): number => ((a % p) + p) % p;
 const fade = (t: number): number => t * t * (3 - 2 * t);
 
-export function valueNoise(x: number, y: number, seed: number, period = 0): number {
+/** period — период по x (и по y, если periodY не задан). Для растянутых узоров период задаётся по осям отдельно. */
+export function valueNoise(x: number, y: number, seed: number, period = 0, periodY = period): number {
   const xi = Math.floor(x);
   const yi = Math.floor(y);
   const xf = x - xi;
@@ -24,8 +25,10 @@ export function valueNoise(x: number, y: number, seed: number, period = 0): numb
   if (period > 0) {
     x0 = mod(x0, period);
     x1 = mod(x1, period);
-    y0 = mod(y0, period);
-    y1 = mod(y1, period);
+  }
+  if (periodY > 0) {
+    y0 = mod(y0, periodY);
+    y1 = mod(y1, periodY);
   }
   const a = hash2(x0, y0, seed);
   const b = hash2(x1, y0, seed);
@@ -37,14 +40,14 @@ export function valueNoise(x: number, y: number, seed: number, period = 0): numb
 }
 
 export function fbm(
-  x: number, y: number, seed: number, octaves = 4, period = 0, lacunarity = 2, gain = 0.5,
+  x: number, y: number, seed: number, octaves = 4, period = 0, lacunarity = 2, gain = 0.5, periodY = period,
 ): number {
   let sum = 0;
   let amp = 0.5;
   let freq = 1;
   let norm = 0;
   for (let i = 0; i < octaves; i++) {
-    sum += amp * valueNoise(x * freq, y * freq, seed + i * 31, period > 0 ? period * freq : 0);
+    sum += amp * valueNoise(x * freq, y * freq, seed + i * 31, period > 0 ? period * freq : 0, periodY > 0 ? periodY * freq : 0);
     norm += amp;
     amp *= gain;
     freq *= lacunarity;
@@ -53,13 +56,13 @@ export function fbm(
 }
 
 /** Ridged-шум: тонкие «трещины» и прожилки. */
-export function ridged(x: number, y: number, seed: number, octaves = 4, period = 0): number {
+export function ridged(x: number, y: number, seed: number, octaves = 4, period = 0, periodY = period): number {
   let sum = 0;
   let amp = 0.5;
   let freq = 1;
   let norm = 0;
   for (let i = 0; i < octaves; i++) {
-    const n = valueNoise(x * freq, y * freq, seed + i * 17, period > 0 ? period * freq : 0);
+    const n = valueNoise(x * freq, y * freq, seed + i * 17, period > 0 ? period * freq : 0, periodY > 0 ? periodY * freq : 0);
     sum += amp * (1 - Math.abs(n * 2 - 1));
     norm += amp;
     amp *= 0.5;

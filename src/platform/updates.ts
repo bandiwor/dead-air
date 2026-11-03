@@ -78,7 +78,7 @@ export class Updater {
   }
 }
 
-function isVersion(v: unknown): v is VersionInfo {
+export function isVersion(v: unknown): v is VersionInfo {
   if (typeof v !== 'object' || v === null) return false;
   const o = v as Record<string, unknown>;
   return typeof o.id === 'string' && o.id.length > 0 && o.id.length < 64 && typeof o.version === 'string';

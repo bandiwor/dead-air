@@ -222,7 +222,7 @@ export class GameRenderer {
     this.flashlight.intensity = this.flashlightOn && p.alive ? 160 * flick : 0;
     this.aura.position.set(p.x, p.y + 1.6, p.z);
     this.aura.intensity = this.flashlightOn ? 5 : 0;
-    this.hemi.intensity = damp(this.hemi.intensity, this.cinematic ? 2.4 : 0.85, 2, dt);
+    this.hemi.intensity = damp(this.hemi.intensity, this.cinematic ? 1.7 : 0.85, 2, dt);
     this.moon.intensity = damp(this.moon.intensity, this.cinematic ? 0.9 : 0.32, 2, dt);
     this.fog.density = damp(this.fog.density, this.cinematic ? this.baseFog * 0.55 : this.baseFog, 2, dt);
 

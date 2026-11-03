@@ -4,7 +4,8 @@ import { WORLD, groundAt, heightAt } from '../proc/terrain';
 import { TRAIL_SIZE, type World } from './world';
 import type { Enemy } from './types';
 import { damagePlayer } from './combat';
-import { houseAt } from './houses';
+import { steerAround } from './collision';
+import { houseAt, toLocal } from './houses';
 import { doorOf } from '../proc/layout';
 import { PLAYER_R } from './player';
 
@@ -121,6 +122,11 @@ function onPierY(e: Enemy): number {
 }
 
 function moveToward(w: World, e: Enemy, tx: number, tz: number, speed: number, dt: number, collide = true): number {
+  if (collide) {
+    // обход срубов: цель за домом → идём к его свободному углу
+    const skip = houseAt(w.layout.houses, tx, tz);
+    [tx, tz] = steerAround(w.statics, e.x, e.z, tx, tz, e.r, skip);
+  }
   let dx = tx - e.x;
   let dz = tz - e.z;
   const d = Math.hypot(dx, dz) || 1;
@@ -379,14 +385,11 @@ function route(w: World, e: Enemy, tx: number, tz: number): [number, number] {
   if (!h) return [tx, tz];
   const outside = doorOf(h, 1.4);
   const inside = doorOf(h, -0.9);
-  if (ph >= 0) {
-    // снаружи → внутрь
-    if (Math.hypot(e.x - outside.x, e.z - outside.z) > 0.9) return [outside.x, outside.z];
-    return [inside.x, inside.z];
-  }
-  // изнутри → наружу
-  if (Math.hypot(e.x - inside.x, e.z - inside.z) > 0.7) return [inside.x, inside.z];
-  return [outside.x, outside.z];
+  // «в створе двери» — по локальным координатам дома: дальше идём насквозь, без возврата к крыльцу
+  const [lx, lz] = toLocal(h, e.x, e.z);
+  const inDoorway = Math.abs(lx) < 0.9 && lz > h.d / 2 - 1.2 && lz < h.d / 2 + 1.7;
+  if (ph >= 0) return inDoorway ? [inside.x, inside.z] : [outside.x, outside.z];
+  return inDoorway ? [outside.x, outside.z] : [inside.x, inside.z];
 }
 
 function separate(w: World): void {

@@ -262,7 +262,8 @@ export function doorGeometry(): THREE.BufferGeometry {
 export function furnitureGeometry(list: readonly { type: string; x: number; z: number; rot?: number }[], w: number, d: number, seed: number): THREE.BufferGeometry {
   const r = new Rng(seed);
   const b = new Builder(seed);
-  b.box(w - 0.36, 0.05, d - 0.36, { pos: [0, -0.1, 0], color: 0x5a4a3a, jitter: 0.25 });
+  // пол чуть выше выровненной земли — трава не просвечивает
+  b.box(w - 0.36, 0.08, d - 0.36, { pos: [0, -0.01, 0], color: 0x5a4a3a, jitter: 0.25 });
   for (const f of list) {
     const rot = f.rot ?? 0;
     const at = (lx: number, ly: number, lz: number): [number, number, number] => {
