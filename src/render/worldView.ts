@@ -50,13 +50,24 @@ const PATHS: [number, number, number, number][] = [
 function terrainColor(x: number, z: number, h: number, out: THREE.Color): void {
   const n = fbm(x * 0.08, z * 0.08, 77, 3);
   const n2 = fbm(x * 0.3, z * 0.3, 78, 2);
-  // трава: тёмная, местами выгоревшая
+  // трава: тёмная, местами выгоревшая; пятна прелой листвы и мха разбивают однотонность
   out.setRGB(0.05 + n * 0.035, 0.065 + n * 0.04, 0.035 + n2 * 0.015);
+  const litter = fbm(x * 0.05 + 30, z * 0.05 - 12, 81, 3);
+  if (litter > 0.56) out.lerp(new THREE.Color(0.085, 0.06, 0.035), smoothstep(0.56, 0.7, litter) * 0.8);
+  const moss = fbm(x * 0.11 - 7, z * 0.11 + 19, 83, 2);
+  if (moss > 0.6) out.lerp(new THREE.Color(0.03, 0.06, 0.03), smoothstep(0.6, 0.72, moss) * 0.7);
+  const dry = fbm(x * 0.2 + 3, z * 0.2, 85, 2);
+  if (dry > 0.66) out.lerp(new THREE.Color(0.09, 0.085, 0.05), (dry - 0.66) * 2.5);
   let path = 0;
   for (const [ax, az, bx, bz] of PATHS) path = Math.max(path, smoothstep(1.7, 0.6, distToSegment(x, z, ax, az, bx, bz) + (n2 - 0.5) * 0.8));
   const square = smoothstep(9, 5, Math.hypot(x, z) + (n - 0.5) * 3);
   const dirt = Math.max(path, square);
-  if (dirt > 0) out.lerp(new THREE.Color(0.07 + n2 * 0.03, 0.055 + n2 * 0.02, 0.04), dirt);
+  if (dirt > 0) {
+    out.lerp(new THREE.Color(0.07 + n2 * 0.03, 0.055 + n2 * 0.02, 0.04), dirt);
+    // лужи и тёмные колеи на тропах
+    const puddle = fbm(x * 0.4, z * 0.4, 87, 2);
+    if (puddle > 0.68 && dirt > 0.6) out.multiplyScalar(0.55);
+  }
   // ил у воды
   if (h < WORLD.waterLevel + 0.7) out.lerp(new THREE.Color(0.03, 0.03, 0.025), smoothstep(WORLD.waterLevel + 0.7, WORLD.waterLevel, h));
   // камень в расщелине и на крутых местах холма
@@ -104,7 +115,7 @@ export function buildWorldView(layout: Layout, tex: TextureSet, quality: number)
   tex.waterNormal.repeat.set(5, 5);
   const water = new THREE.Mesh(
     wg,
-    new THREE.MeshStandardMaterial({ color: 0x0a1215, roughness: 0.08, metalness: 0.1, normalMap: tex.waterNormal, normalScale: new THREE.Vector2(0.35, 0.35) }),
+    new THREE.MeshStandardMaterial({ color: 0x1a2a30, roughness: 0.12, metalness: 0, normalMap: tex.waterNormal, normalScale: new THREE.Vector2(0.4, 0.4), emissive: 0x060c0f }),
   );
   water.position.set(WORLD.pond.x, WORLD.waterLevel, WORLD.pond.z);
   water.receiveShadow = true;
@@ -131,6 +142,9 @@ export function buildWorldView(layout: Layout, tex: TextureSet, quality: number)
       s.set(t.s, t.s * rng.range(0.9, 1.15), t.s);
       m4.compose(v, q, s);
       im.setMatrixAt(i, m4);
+      // разброс оттенка: часть елей темнее/рыжее, берёзы — бледнее
+      const k = rng.range(0.7, 1.15);
+      im.setColorAt(i, new THREE.Color(k * rng.range(0.92, 1.08), k, k * rng.range(0.85, 1.05)));
     });
     im.castShadow = true;
     im.receiveShadow = true;
@@ -176,6 +190,7 @@ export function buildWorldView(layout: Layout, tex: TextureSet, quality: number)
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rng.range(0, 6.28));
     const sc = rng.range(0.7, 1.5);
     m4.compose(v.set(x, h, z), q, s.set(sc, sc * rng.range(0.8, 1.4), sc));
+    grass.setColorAt(gi, new THREE.Color().setRGB(rng.range(0.8, 1.25), rng.range(0.85, 1.15), rng.range(0.7, 1)));
     grass.setMatrixAt(gi++, m4);
   }
   grass.count = gi;

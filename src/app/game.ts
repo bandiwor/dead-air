@@ -241,7 +241,7 @@ export class Game {
     this.renderer.hurt = 0;
     this.amb.setRadio(true);
     void enterImmersive();
-    this.renderer.baseFog = NIGHTS[this.nightIdx]!.fog;
+    this.renderer.setNight(NIGHTS[this.nightIdx]!);
     if (!this.introSeen.has(this.nightIdx)) {
       this.introSeen.add(this.nightIdx);
       this.mode = 'intro';

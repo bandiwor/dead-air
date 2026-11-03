@@ -24,7 +24,24 @@ uniform float uDeadAir;
 uniform sampler2D tShow;
 uniform float uShow;
 uniform float uInvert;
+uniform vec3 uShadowTint;
+uniform vec3 uHiTint;
+uniform float uGrade;
+uniform float uBloom;
 varying vec2 vUv;
+
+// «дешёвое свечение»: 8 выборок вокруг пикселя, берём только то, что ярче порога
+vec3 bloom(vec2 uv) {
+  vec2 px = 1.0 / uRes;
+  vec3 acc = vec3(0.0);
+  for (int i = 0; i < 8; i++) {
+    float a = float(i) * 0.785398;
+    vec2 o = vec2(cos(a), sin(a));
+    acc += max(texture2D(tScene, uv + o * px * 2.5).rgb - 0.75, 0.0);
+    acc += max(texture2D(tScene, uv + o * px * 6.0).rgb - 0.75, 0.0) * 0.6;
+  }
+  return acc / 12.8;
+}
 
 float bayer2(vec2 a){ a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
 float bayer4(vec2 a){ return bayer2(0.5 * a) * 0.25 + bayer2(a); }
@@ -55,11 +72,13 @@ void main() {
     vec4 sh = texture2D(tShow, vUv);
     col = mix(col, sh.rgb * 1.25, sh.a * smoothstep(0.35, 1.0, uShow));
   }
+  if (uBloom > 0.0) col += bloom(uv) * uBloom;
   // мягкая тональная компрессия
   col = col / (1.0 + col * 0.55) * 1.3;
   float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
   // раздельное тонирование: тени — в сине-чёрный, света — в натриевый янтарь
-  col *= mix(vec3(0.62, 0.78, 1.0), vec3(1.07, 0.98, 0.84), smoothstep(0.015, 0.45, l));
+  col *= mix(uShadowTint, uHiTint, smoothstep(0.015, 0.45, l));
+  col = mix(col, vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), uGrade);
   col = mix(col, vec3(l), uSanity * 0.45 + uDeadAir * 0.12);
   col = mix(col, vec3(l * 1.3, l * 0.12, l * 0.1), uHurt * 0.55);
   col += uFlash * vec3(1.0, 0.93, 0.82);
@@ -99,6 +118,10 @@ export class PostPass {
     tShow: { value: null as THREE.Texture | null },
     uShow: { value: 0 },
     uInvert: { value: 0 },
+    uShadowTint: { value: new THREE.Vector3(0.62, 0.78, 1.0) },
+    uHiTint: { value: new THREE.Vector3(1.07, 0.98, 0.84) },
+    uGrade: { value: 0 },
+    uBloom: { value: 0.9 },
   };
 
   constructor() {

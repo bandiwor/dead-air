@@ -10,6 +10,8 @@ import { PostPass } from './post';
 import { shared } from './materials';
 import { Showcase } from './showcase';
 import { DebugDraw } from './debugDraw';
+import { Atmosphere } from './atmosphere';
+import type { NightDef } from '../content/night';
 
 export interface CameraShot {
   pos: THREE.Vector3;
@@ -47,6 +49,9 @@ export class GameRenderer {
   private rt: THREE.WebGLRenderTarget;
   readonly showcase: Showcase;
   readonly debugDraw: DebugDraw;
+  readonly atmos: Atmosphere;
+  /** Окна (для ореолов): позиция и дом, чей свет их зажигает. */
+  private readonly windowGlows: { x: number; y: number; z: number; house: number }[] = [];
   /** Отладка: отдаление камеры (0 — обычно) и статистика последнего кадра. */
   debugZoom = 0;
   readonly stats = { calls: 0, triangles: 0, frameMs: 16, width: 0, height: 0, programs: 0, textures: 0, geometries: 0 };
@@ -85,6 +90,8 @@ export class GameRenderer {
     this.rt = this.makeTarget(640, 360);
     this.showcase = new Showcase(tex, this.rt.texture.type);
     this.debugDraw = new DebugDraw(w);
+    this.atmos = new Atmosphere({ quality });
+    this.post.u.uBloom.value = quality === 0 ? 0 : quality === 1 ? 0.8 : 1;
 
     this.fog = new THREE.FogExp2(COLORS.fog, 0.03);
     this.scene.fog = this.fog;
@@ -112,6 +119,16 @@ export class GameRenderer {
     this.view = buildWorldView(w.layout, tex, quality);
     this.scene.add(this.view.root);
     this.scene.add(this.debugDraw.group);
+    this.scene.add(this.atmos.root);
+    // ореолы у фасадных окон каждого дома
+    w.layout.houses.forEach((h, i) => {
+      const y = (this.view.houseY[i] ?? 0) + 1.25;
+      for (const side of [-1, 1]) {
+        const lx = side * h.w * 0.32;
+        const lz = h.d / 2 + 0.2;
+        this.windowGlows.push({ x: h.x + lx * Math.cos(h.rot) + lz * Math.sin(h.rot), y, z: h.z - lx * Math.sin(h.rot) + lz * Math.cos(h.rot), house: i });
+      }
+    });
     this.actors = new ActorsView(tex);
     this.scene.add(this.actors.root);
     this.fx = new Fx(quality);
@@ -133,6 +150,17 @@ export class GameRenderer {
       stencilBuffer: false,
     });
     return rt;
+  }
+
+  /** Облик ночи: туман, морось, цветокоррекция. */
+  setNight(n: NightDef): void {
+    this.baseFog = n.fog;
+    const look = n.look;
+    this.atmos.rainOn = look.rain && this.quality >= 0;
+    this.atmos.setMist(look.mist);
+    this.post.u.uShadowTint.value.set(...look.shadow);
+    this.post.u.uHiTint.value.set(...look.highlight);
+    this.post.u.uGrade.value = look.desat;
   }
 
   /** Стоп-кадр: замораживаем последний кадр и показываем существо. */
@@ -168,6 +196,7 @@ export class GameRenderer {
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
       this.fx.setScale(h * 1.1);
+      this.atmos.setScale(h * 1.1);
     }
   }
 
@@ -259,6 +288,7 @@ export class GameRenderer {
     wn.offset.set(this.time * 0.01, this.time * 0.006);
 
     this.actors.update(w, dt, this.view.barrels);
+    this.atmos.update(w, dt, this.flashlight, this.flashlightOn && this.flashlight.intensity > 1, this.camLook.x, this.camLook.z, this.windowGlows);
     this.fx.update(dt);
 
     // камера и тряска

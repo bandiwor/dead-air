@@ -12,6 +12,8 @@ export const NIGHT1: NightDef = {
   index: 1,
   titleKey: 'night.1',
   fog: 0.03,
+  // тёплая ночь: натриевый янтарь против сине-чёрного
+  look: { shadow: [0.62, 0.78, 1.0], highlight: [1.07, 0.98, 0.84], desat: 0, mist: 1, rain: false },
   lights: [true, false, false, true, false, false],
   startWeapons: ['revolver', 'flaregun'],
   knockRule: 2,

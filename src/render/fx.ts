@@ -311,6 +311,7 @@ export class Fx {
   readonly debris = new Debris();
   readonly decals = new Decals();
   private readonly rings: { mesh: THREE.Mesh; life: number; max: number; r: number }[] = [];
+  private readonly balls: { mesh: THREE.Mesh; life: number; max: number; r: number }[] = [];
   private readonly lights: PooledLight[] = [];
   readonly flareLights: THREE.PointLight[] = [];
   readonly muzzle: THREE.PointLight;
@@ -331,6 +332,23 @@ export class Fx {
       ring.visible = false;
       this.root.add(ring);
       this.rings.push({ mesh: ring, life: 0, max: 0.4, r: 1 });
+    }
+    // огненные шары взрывов: раздуваются, остывают от жёлтого к тёмно-красному
+    for (let i = 0; i < 3; i++) {
+      // неровный «клубящийся» шар: вершины сдвинуты шумом
+      const bg = new THREE.IcosahedronGeometry(1, 2);
+      const bp = bg.attributes.position!;
+      for (let k = 0; k < bp.count; k++) {
+        const j = 0.7 + this.rng.next() * 0.55;
+        bp.setXYZ(k, bp.getX(k) * j, bp.getY(k) * j, bp.getZ(k) * j);
+      }
+      const ball = new THREE.Mesh(
+        bg,
+        new THREE.MeshBasicMaterial({ color: 0xffc070, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }),
+      );
+      ball.visible = false;
+      this.root.add(ball);
+      this.balls.push({ mesh: ball, life: 0, max: 0.5, r: 1 });
     }
     // Количество источников фиксировано: смена числа ламп заставляет three перекомпилировать шейдеры.
     const nExp = quality >= 1 ? 2 : 1;
@@ -455,6 +473,11 @@ export class Fx {
       this.debris.spawn(x, y + 0.3, z, Math.cos(a) * sp, r.range(4, 12), Math.sin(a) * sp, r.range(0.06, 0.2), r.chance(0.5) ? 0x2a2622 : 0x3a3028, r.range(10, 18), r);
     }
     this.decals.add(x, z, radius * 0.55, 0x0c0b0a, r.range(0, 6));
+    const ball = this.balls.find((b) => b.life <= 0) ?? this.balls[0]!;
+    ball.mesh.position.set(x, y + 0.8, z);
+    ball.life = ball.max = 0.55;
+    ball.r = radius * 0.55;
+    ball.mesh.visible = true;
     const ring = this.rings.find((rr) => rr.life <= 0) ?? this.rings[0]!;
     ring.mesh.position.set(x, y + 0.2, z);
     ring.life = ring.max = 0.45;
@@ -488,6 +511,19 @@ export class Fx {
       l.life -= dt;
       const k = Math.max(0, l.life / l.max);
       l.light.intensity = l.peak * k * k;
+    }
+    for (const b of this.balls) {
+      if (b.life <= 0) continue;
+      b.life -= dt;
+      const k = 1 - Math.max(0, b.life / b.max);
+      const sc = b.r * (0.3 + Math.sqrt(k) * 1.0);
+      b.mesh.scale.set(sc, sc * 0.8, sc);
+      b.mesh.position.y += dt * 1.5;
+      b.mesh.rotation.y += dt * 2;
+      b.mesh.rotation.x += dt * 1.3;
+      const cool = 1 - k;
+      (b.mesh.material as THREE.MeshBasicMaterial).color.setRGB(1.25 * cool, (0.85 * cool) ** 1.6, (0.4 * cool) ** 3);
+      if (b.life <= 0) b.mesh.visible = false;
     }
     for (const rg of this.rings) {
       if (rg.life <= 0) continue;

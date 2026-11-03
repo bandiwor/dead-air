@@ -18,6 +18,8 @@ export const NIGHT2: NightDef = {
   endHour: 6,
   reelSeconds: 80,
   fog: 0.042,
+  // вода: холоднее, зеленее, бледнее; морось и туман гуще
+  look: { shadow: [0.55, 0.8, 0.9], highlight: [0.95, 1.0, 0.94], desat: 0.18, mist: 1.6, rain: true },
   lights: [false, false, false, false, false, false],
   startWeapons: ['revolver', 'flaregun', 'shotgun'],
   knockRule: 2,

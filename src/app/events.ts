@@ -78,6 +78,7 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
       const wd = WEAPONS[e.a]!;
       audio.play(wd.sound, { x: e.x, z: e.z, vol: 1, reverb: 0.45 });
       r.fx.muzzleFlash(e.x, e.y, e.z, e.b, wd.id === 'shotgun' || wd.id === 'rifle' ? 1.4 : wd.id === 'flaregun' ? 0.6 : 1);
+      r.atmos.burst(e.x, e.y, e.z, wd.id === 'smg' ? 3 : 4.5, 0xffc070, c.reduceFlashes ? 0.4 : 0.9, 0.08);
       if (wd.id === 'smg' || wd.id === 'rifle') r.fx.casing(e.x, e.y, e.z, e.b, false);
       r.addTrauma(wd.shake);
       vibrate(wd.id === 'smg' ? 6 : 18);
@@ -103,6 +104,7 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
     }
     case 'explosion': {
       r.fx.explosion(e.x, e.y, e.z, e.a);
+      r.atmos.burst(e.x, e.y + 1.2, e.z, e.a * 4, 0xff9040, c.reduceFlashes ? 0.5 : 1, 0.7);
       audio.play('explosion', { x: e.x, z: e.z, vol: 1.3, reverb: 0.6 });
       const k = Math.max(0, 1 - dist / 30);
       r.addTrauma(0.3 + k * 0.7);
