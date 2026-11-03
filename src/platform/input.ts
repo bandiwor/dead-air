@@ -47,6 +47,8 @@ export class Input {
   private readonly aimEl: HTMLElement;
   private readonly keys = new Set<string>();
   private mouse = { x: 0, y: 0, down: false, active: false };
+  /** Щелчок короче кадра не теряется: нажатие «защёлкивается» до ближайшего тика. */
+  private clickLatch = false;
   private held = { action: false };
   private edges = { swap: false, throw: false, reload: false, action: false, voice: false };
   private select = -1;
@@ -56,6 +58,13 @@ export class Input {
   enabled = false;
   onPause: () => void = () => undefined;
   usingTouch = false;
+  /** Экранная точка → направление прицела в мире (луч из камеры). Задаёт игра, когда есть рендер. */
+  mouseAim: ((sx: number, sy: number) => [number, number] | null) | null = null;
+
+  /** Где курсор, если играют мышью (для камеры), иначе null. */
+  get mousePos(): { x: number; y: number } | null {
+    return !this.usingTouch && this.mouse.active ? this.mouse : null;
+  }
   /** Прицел-курсор для мыши: системный курсор в игре скрыт. */
   private readonly reticle: HTMLElement;
 
@@ -152,7 +161,12 @@ export class Input {
     if (e.pointerType === 'mouse') {
       this.usingTouch = false;
       this.mouse.down = e.button === 0;
+      if (e.button === 0) this.clickLatch = true;
       this.mouse.active = true;
+      // позиция — из самого нажатия: если мышь не двигалась, прицел не «прыгнет» к старой точке
+      this.mouse.x = e.clientX;
+      this.mouse.y = e.clientY;
+      this.reticle.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
       return;
     }
     this.usingTouch = true;
@@ -248,6 +262,7 @@ export class Input {
     this.aimEl.classList.remove('on');
     this.held.action = false;
     this.mouse.down = false;
+    this.clickLatch = false;
     this.edges = { swap: false, throw: false, reload: false, action: false, voice: false };
   }
 
@@ -291,15 +306,17 @@ export class Input {
       out.mz = kz / l;
     }
     if (!this.usingTouch && this.mouse.active) {
-      const dx = this.mouse.x - this.playerScreen.x;
-      const dy = this.mouse.y - this.playerScreen.y;
-      if (Math.hypot(dx, dy) > 4) {
+      // точное направление: луч из камеры через курсор до высоты ствола
+      const v = this.mouseAim?.(this.mouse.x, this.mouse.y) ?? null;
+      const dx = v ? v[0] : this.mouse.x - this.playerScreen.x;
+      const dy = v ? v[1] : (this.mouse.y - this.playerScreen.y) * 1.25;
+      if (Math.hypot(dx, dy) > (v ? 0.25 : 4)) {
         out.aiming = true;
         out.ax = dx;
-        out.az = dy * 1.25; // компенсация наклона камеры
-        out.fire = this.mouse.down;
+        out.az = dy;
+        out.fire = this.mouse.down || this.clickLatch;
         // мышь просто наведена — «мягкий» прицел: на ходу персонаж смотрит по ходу
-        out.aimSoft = !this.mouse.down;
+        out.aimSoft = !out.fire;
       }
     }
     // короткий тап не теряется: «защёлка» держит действие хотя бы один тик
@@ -308,6 +325,7 @@ export class Input {
     out.swap = this.edges.swap;
     out.throw = this.edges.throw;
     out.reload = this.edges.reload;
+    this.clickLatch = false;
     out.voice = this.edges.voice;
     out.select = this.select;
     this.select = -1;

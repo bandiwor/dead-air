@@ -267,13 +267,56 @@ export class GameRenderer {
   /** 0..1 — насколько игрок в Щели: там тесно, камера подходит ближе. */
   private ravine = 0;
 
+  /**
+   * Куда в мире указывает экранная точка: луч из камеры (без тряски) до плоскости на высоте ствола.
+   * Возвращает смещение от игрока по x/z — это и есть направление прицела.
+   */
+  aimFromScreen(w: World, sx: number, sy: number): [number, number] | null {
+    const cam = this.aimCam;
+    cam.position.copy(this.camPos);
+    cam.fov = this.camera.fov;
+    cam.aspect = this.camera.aspect;
+    cam.near = this.camera.near;
+    cam.far = this.camera.far;
+    cam.updateProjectionMatrix();
+    cam.lookAt(this.camLook);
+    cam.updateMatrixWorld();
+    this.ndc.set((sx / window.innerWidth) * 2 - 1, -(sy / window.innerHeight) * 2 + 1);
+    this.ray.setFromCamera(this.ndc, cam);
+    const p = w.player;
+    this.aimPlane.constant = -(p.y + 1.15);
+    const hit = this.ray.ray.intersectPlane(this.aimPlane, this.hitPt);
+    if (!hit) return null;
+    return [hit.x - p.x, hit.z - p.z];
+  }
+
+  /** Смещение курсора от центра экрана (−1..1) — камера заглядывает туда, куда смотрит мышь. */
+  mouseLook: { x: number; y: number } | null = null;
+  private readonly aimCam = new THREE.PerspectiveCamera();
+  private readonly ray = new THREE.Raycaster();
+  private readonly ndc = new THREE.Vector2();
+  private readonly aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  private readonly hitPt = new THREE.Vector3();
+  private leadX = 0;
+  private leadZ = 0;
+
   followCamera(w: World, dt: number): void {
     const p = w.player;
     // в доме камера опускается и подходит ближе: тесно, видно только комнату
     this.zoom = damp(this.zoom, w.playerHouse >= 0 ? 1 : 0, 2.5, dt);
     const lead = 3.2 - this.zoom * 2.4;
-    const tx = p.x + Math.cos(p.yaw) * lead;
-    const tz = p.z + Math.sin(p.yaw) * lead * 0.8;
+    // упреждение: с мышью — по курсору (не дёргается, когда тело резко разворачивается на выстрел),
+    // с пальцами — по взгляду персонажа
+    let lx = Math.cos(this.actors.visualYaw) * lead;
+    let lz = Math.sin(this.actors.visualYaw) * lead * 0.8;
+    if (this.mouseLook) {
+      lx = clamp(this.mouseLook.x, -1, 1) * lead;
+      lz = clamp(this.mouseLook.y, -1, 1) * lead * 0.8;
+    }
+    this.leadX = damp(this.leadX, lx, 3, dt);
+    this.leadZ = damp(this.leadZ, lz, 3, dt);
+    const tx = p.x + this.leadX;
+    const tz = p.z + this.leadZ;
     const ty = p.y;
     this.camLook.x = damp(this.camLook.x, tx, 4, dt);
     this.camLook.y = damp(this.camLook.y, ty + 0.5, 4, dt);
@@ -309,12 +352,13 @@ export class GameRenderer {
     shared.uPlayer.value.set(p.x, p.y, p.z);
 
     // фонарь
-    const dx = Math.cos(p.yaw);
-    const dz = Math.sin(p.yaw);
+    const vy = this.actors.visualYaw;
+    const dx = Math.cos(vy);
+    const dz = Math.sin(vy);
     // луч выходит из стекла фонаря в руках (у ребёнка — из лампы у колена)
     const child = !!w.cfg.night.child;
-    const lx = child ? -Math.sin(p.yaw) * -0.25 : 0;
-    const lz = child ? Math.cos(p.yaw) * -0.25 : 0;
+    const lx = child ? Math.sin(vy) * 0.25 : 0;
+    const lz = child ? -Math.cos(vy) * 0.25 : 0;
     this.flashlight.position.set(p.x + dx * (child ? 0.15 : 0.62) + lx, p.y + (child ? 0.62 : 1.16), p.z + dz * (child ? 0.15 : 0.62) + lz);
     this.flashlight.target.position.set(p.x + dx * 9, groundAt(p.x + dx * 9, p.z + dz * 9), p.z + dz * 9);
     // лёгкое дрожание луча при низком рассудке

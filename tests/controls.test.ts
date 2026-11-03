@@ -34,15 +34,13 @@ describe('управление: куда смотрит персонаж', () =>
     expect(ang(w.player.yaw, -Math.PI / 2)).toBeLessThan(0.1);
   });
 
-  it('пока тело доворачивается к прицелу, выстрела «вбок» нет', () => {
+  it('резкий выстрел назад на ходу — пуля точно в прицел с первого же кадра', () => {
     const w = quietWorld(3);
-    w.player.yaw = Math.PI; // спиной к цели
-    const log = step(w, input({ aiming: true, ax: 1, az: 0, fire: true }), 1 / 60);
-    expect(log.some((e) => e.type === 'shot')).toBe(false);
-    const later = step(w, input({ aiming: true, ax: 1, az: 0, fire: true }), 0.3);
-    const shot = later.find((e) => e.type === 'shot');
+    step(w, input({ mx: 1 }), 0.5); // идём вправо, смотрим вправо
+    const log = step(w, input({ mx: 1, aiming: true, ax: -1, az: 0.3, fire: true }), 1 / 60);
+    const shot = log.find((e) => e.type === 'shot');
     expect(shot).toBeTruthy();
-    expect(ang(shot!.b, 0)).toBeLessThan(0.36);
+    expect(ang(shot!.b, Math.atan2(0.3, -1))).toBeLessThan(1e-6);
   });
 
   it('мягкий прицел мыши не замедляет шаг; пятиться с оружием — медленнее, чем идти вперёд', () => {

@@ -160,11 +160,11 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   }
   if (hasAim && hardAim) p.aimHold = 0.55;
   else p.aimHold = Math.max(0, p.aimHold - dt);
-  if (hasAim && (hardAim || p.aimHold > 0)) p.yaw = dampAngle(p.yaw, aimYaw, 24, dt);
+  if (hasAim && inp.fire) p.yaw = aimYaw; // стреляет — сразу туда, куда целятся (видимый поворот сглажен в рендере)
+  else if (hasAim && (hardAim || p.aimHold > 0)) p.yaw = dampAngle(p.yaw, aimYaw, 24, dt);
   else if (moving) p.yaw = dampAngle(p.yaw, Math.atan2(mz, mx), 10, dt);
   else if (hasAim) p.yaw = dampAngle(p.yaw, aimYaw, 3.2, dt);
-  // не стрелять «вбок», пока тело ещё доворачивается к прицелу
-  const aligned = !hasAim || Math.abs(wrapAngle(aimYaw - p.yaw)) < 0.35;
+  const aligned = !hasAim || Math.abs(wrapAngle(aimYaw - p.yaw)) < 0.02;
 
   // --- оружие ---
   const wd = WEAPONS[p.weapon]!;

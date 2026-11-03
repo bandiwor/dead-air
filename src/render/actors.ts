@@ -1,3 +1,4 @@
+import { dampAngle } from '../core/math';
 import * as THREE from 'three';
 import { Kind } from '../content/enemies';
 import type { World } from '../sim/world';
@@ -57,6 +58,8 @@ export class ActorsView {
   private readonly glints: THREE.InstancedMesh;
   private readonly phases = new Map<number, number>();
   private playerPhase = 0;
+  /** Видимый поворот игрока: симуляция разворачивает мгновенно (выстрел точно в прицел), глаз — за ~0.1 с. */
+  visualYaw = 0;
   private time = 0;
 
   constructor(tex: TextureSet) {
@@ -136,10 +139,11 @@ export class ActorsView {
     // игрок
     const speed = Math.hypot(p.vx, p.vz);
     this.playerPhase += speed * dt * 2.3;
+    this.visualYaw = dampAngle(this.visualYaw, p.yaw, 28, dt);
     const isChild = !!w.cfg.night.child;
     const ph = isChild ? this.child : this.player;
     const other = isChild ? this.player : this.child;
-    this.writeInstance(ph, 0, p.x, p.y, p.z, p.yaw, this.playerPhase * (isChild ? 1.4 : 1), Math.min(1, speed / 4.7) * 0.75, p.invuln > 0.25 ? 0.6 : 0, 1, 0, 0, 0);
+    this.writeInstance(ph, 0, p.x, p.y, p.z, this.visualYaw, this.playerPhase * (isChild ? 1.4 : 1), Math.min(1, speed / 4.7) * 0.75, p.invuln > 0.25 ? 0.6 : 0, 1, 0, 0, 0);
     ph.mesh.count = p.alive ? 1 : 0;
     ph.mesh.visible = true;
     other.mesh.count = 0;
@@ -147,7 +151,7 @@ export class ActorsView {
     const gunCount = this.guns.map(() => 0);
     if (!isChild && p.alive && p.owned[p.weapon]) {
       const g = this.guns[p.weapon]!;
-      this.writeInstance(g, 0, p.x, p.y, p.z, p.yaw, this.playerPhase, Math.min(1, speed / 4.7) * 0.75, p.invuln > 0.25 ? 0.6 : 0, 1, 0, 0, 0);
+      this.writeInstance(g, 0, p.x, p.y, p.z, this.visualYaw, this.playerPhase, Math.min(1, speed / 4.7) * 0.75, p.invuln > 0.25 ? 0.6 : 0, 1, 0, 0, 0);
       gunCount[p.weapon] = 1;
     }
 

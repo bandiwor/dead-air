@@ -219,6 +219,8 @@ export class Game {
     this.renderer.fx.flashScale = this.settings.reduceFlashes ? 0.35 : 1;
     this.renderer.invertFlash = !this.settings.reduceFlashes;
     this.renderer.resize();
+    const rr = this.renderer;
+    this.input.mouseAim = (sx, sy) => rr.aimFromScreen(this.world, sx, sy);
     this.setDebug(this.settings.debug);
     this.audio.setVolume(this.settings.volume);
     this.amb.start();
@@ -587,6 +589,8 @@ export class Game {
         steps++;
       }
       if (steps === maxSteps) this.acc = 0;
+      const mp = this.input.mousePos;
+      r.mouseLook = mp && this.mode === 'play' ? { x: (mp.x / innerWidth) * 2 - 1, y: (mp.y / innerHeight) * 2 - 1 } : null;
       r.followCamera(w, dt);
       if (this.mode === 'play') this.checkBestiary();
     } else if (this.mode === 'intro' || this.mode === 'dawn') {
