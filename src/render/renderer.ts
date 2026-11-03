@@ -107,7 +107,7 @@ export class GameRenderer {
     moon.position.set(-30, 50, -20);
     this.scene.add(moon);
 
-    this.flashlight = new THREE.SpotLight(0xffe4b8, 160, 28, 0.5, 0.55, 1.6);
+    this.flashlight = new THREE.SpotLight(0xffe4b8, 340, 28, 0.5, 0.7, 2);
     this.flashlight.castShadow = true;
     const sm = quality >= 2 ? 1024 : quality === 1 ? 512 : 256;
     this.flashlight.shadow.mapSize.set(sm, sm);
@@ -116,7 +116,8 @@ export class GameRenderer {
     this.flashlight.shadow.bias = -0.0008;
     this.flashlight.shadow.normalBias = 0.03;
     this.scene.add(this.flashlight, this.flashlight.target);
-    this.aura = new THREE.PointLight(0xffd8a8, 5, 6, 1.4);
+    // «отсвет» вокруг рук: без теней, поэтому маленький — иначе подсвечивает пол за стеной
+    this.aura = new THREE.PointLight(0xffd8a8, 3, 3.2, 2);
     this.scene.add(this.aura);
 
     this.view = buildWorldView(w.layout, tex, quality);
@@ -206,7 +207,7 @@ export class GameRenderer {
     // у ребёнка — керосиновая лампа: тёплая, широкая, короткая
     this.flashlight.color.setHex(n.child ? 0xffa850 : 0xffe4b8);
     this.flashlight.angle = n.child ? 1.0 : 0.5;
-    this.flashlight.penumbra = n.child ? 0.9 : 0.55;
+    this.flashlight.penumbra = n.child ? 0.9 : 0.7;
     this.aura.color.setHex(n.child ? 0xffa040 : 0xffd8a8);
     const look = n.look;
     this.atmos.rainOn = look.rain && this.quality >= 0;
@@ -367,10 +368,11 @@ export class GameRenderer {
     if (this.flicker <= 0 && Math.random() < dt * (1 - sanity) * 0.8) this.flicker = 0.08 + Math.random() * 0.25;
     const flick = this.flicker > 0 ? (Math.random() < 0.5 ? 0.1 : 0.6) : 1;
     const tf = torchFactor(w);
-    this.flashlight.intensity = this.flashlightOn && p.alive ? 160 * flick * tf : 0;
+    // физичное затухание (квадрат расстояния): яркое пятно под ногами, мягко гаснет вдаль
+    this.flashlight.intensity = this.flashlightOn && p.alive ? 340 * flick * tf : 0;
     this.flashlight.distance = 28 * tf;
     this.aura.position.set(p.x, p.y + (child ? 0.9 : 1.6), p.z);
-    this.aura.intensity = this.flashlightOn ? (w.cfg.night.child ? 9 : 5) : 0;
+    this.aura.intensity = this.flashlightOn ? (w.cfg.night.child ? 6 : 3) : 0;
     this.hemi.intensity = damp(this.hemi.intensity, this.cinematic ? 1.7 : 0.85, 2, dt);
     this.moon.intensity = damp(this.moon.intensity, this.cinematic ? 0.9 : 0.32, 2, dt);
     this.fog.density = damp(this.fog.density, this.cinematic ? this.baseFog * 0.55 : this.baseFog, 2, dt);

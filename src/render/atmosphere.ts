@@ -94,6 +94,7 @@ varying vec2 vUvA;
 uniform float uIntensity;
 uniform float uTime;
 uniform vec3 uColor;
+uniform float uCut;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
@@ -102,7 +103,9 @@ void main() {
   float along = smoothstep(0.0, 0.06, vAlong) * pow(1.0 - vAlong, 1.6);
   float edge = pow(vFacing, 2.0);
   float dust = 0.55 + 0.45 * noise(vec2(vUvA.x * 3.0, vUvA.y * 7.0 - uTime * 0.35));
-  float a = uIntensity * along * edge * dust;
+  // луч не проходит сквозь стены: обрезан там, где упирается в сруб (мягко, без ступеньки)
+  float cut = 1.0 - smoothstep(uCut - 0.04, uCut, vAlong);
+  float a = uIntensity * along * edge * dust * cut;
   gl_FragColor = vec4(uColor, a);
 }`;
 
@@ -142,7 +145,9 @@ export class Atmosphere {
 
   // луч фонаря
   private readonly beam: THREE.Mesh;
-  private readonly beamU = { uIntensity: { value: 0.11 }, uTime: { value: 0 }, uColor: { value: new THREE.Color(0xffe2b0) } };
+  private readonly beamU = { uIntensity: { value: 0.11 }, uTime: { value: 0 }, uColor: { value: new THREE.Color(0xffe2b0) }, uCut: { value: 1 } };
+  /** Длина луча в метрах (уходит в землю примерно на 10 м). */
+  private static readonly BEAM_LEN = 15;
 
   // пылинки
   private readonly motes: THREE.Points;
@@ -332,10 +337,18 @@ export class Atmosphere {
     this.beam.position.copy(lp);
     this.q.setFromUnitVectors(this.up, dir);
     this.beam.quaternion.copy(this.q);
-    const len = 15;
+    const len = Atmosphere.BEAM_LEN;
     this.beam.scale.set(1, len, 1);
+    // где луч упирается в стену: двумерный луч по коллизиям мира (двери учтены), в долях длины конуса
+    const hl = Math.hypot(dir.x, dir.z);
+    if (hl > 1e-4) {
+      const tWall = w.statics.raycast(lp.x, lp.z, dir.x / hl, dir.z / hl, len * hl, false);
+      const target = Math.min(1, (tWall / hl + 0.15) / len);
+      // плавно: когда стена уходит из-под луча, он не «выстреливает» на всю длину за кадр
+      this.beamU.uCut.value += (target - this.beamU.uCut.value) * (target < this.beamU.uCut.value ? 1 : Math.min(1, dt * 10));
+    }
     this.beamU.uTime.value = t;
-    this.beamU.uIntensity.value = flashOn ? 0.2 * Math.min(1, flash.intensity / 160) : 0;
+    this.beamU.uIntensity.value = flashOn ? 0.2 * Math.min(1, flash.intensity / 340) : 0;
     this.beam.visible = flashOn && p.alive;
 
     // ---- пылинки: кружатся вокруг игрока, светятся только в луче

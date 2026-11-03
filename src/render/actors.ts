@@ -93,7 +93,8 @@ export class ActorsView {
     const gunMat = new THREE.MeshLambertMaterial({ vertexColors: true });
     gunMat.color.setScalar(1.5);
     this.guns = WEAPONS.map((wd) => {
-      const hgun = herd(weaponGeometry(wd.id).translate(...HAND_R), gunMat, 5);
+      // оружие у самого фонаря: тени не отбрасывает, иначе ствол рисует чёрную полосу посреди луча
+      const hgun = herd(weaponGeometry(wd.id).translate(...HAND_R), gunMat, 5, false);
       this.root.add(hgun.mesh);
       return hgun;
     });

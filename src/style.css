@@ -127,7 +127,8 @@ button {
   .stick-aim { bottom: calc(16px + var(--safe-b)); right: calc(110px + var(--safe-r)); }
 }
 
-/* прицел мыши: системный курсор в игре скрыт */
+/* прицел мыши: системный курсор в игре скрыт. Никаких scale/transform на нём —
+   позиция задаётся transform из JS, и масштаб сдвигал бы прицел с курсора */
 .touch.mouse-aim { cursor: none; }
 .reticle {
   position: absolute;
@@ -138,12 +139,12 @@ button {
   border: 1px solid var(--phos);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s, border-color 0.1s, scale 0.1s;
+  transition: opacity 0.15s, border-color 0.1s, box-shadow 0.1s;
   will-change: transform;
 }
 .reticle::after { content: ''; position: absolute; left: 7px; top: 7px; width: 2px; height: 2px; background: var(--phos); }
 .mouse-aim .reticle { opacity: 0.85; }
-.reticle.firing { border-color: var(--sodium); scale: 0.8; }
+.reticle.firing { border-color: var(--sodium); box-shadow: inset 0 0 0 2px rgba(232, 163, 61, 0.35); }
 .reticle.firing::after { background: var(--sodium); }
 
 /* ---------- HUD ---------- */
