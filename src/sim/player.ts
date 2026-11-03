@@ -1,5 +1,5 @@
 import { clamp, damp, dampAngle, wrapAngle } from '../core/math';
-import { groundAt, isWater, surfaceAt, water } from '../proc/terrain';
+import { groundAt, heightAt, isWater, surfaceAt, water } from '../proc/terrain';
 import { WEAPONS } from '../content/weapons';
 import { Kind } from '../content/enemies';
 import { TRAIL_SIZE, type World } from './world';
@@ -10,6 +10,31 @@ import { updateInteract } from './interact';
 export const PLAYER_R = 0.38;
 const SPEED = 4.7;
 const TRAIL_STEP = 0.12;
+
+/** Крутизна, начиная с которой склон — стена (≈51°). */
+export const MAX_SLOPE = 1.25;
+
+function slopeOf(ox: number, oz: number, nx: number, nz: number): number {
+  const d = Math.hypot(nx - ox, nz - oz);
+  return d > 1e-6 ? (heightAt(nx, nz) - heightAt(ox, oz)) / d : 0;
+}
+
+/**
+ * Шаг по рельефу. Горизонтальная скорость постоянна только на ровном: на подъёме шаг короче
+ * (иначе по крутому склону персонаж «взлетает»), на спуске — по длине вдоль склона.
+ * В слишком крутую стену не идём — скользим вдоль неё по одной из осей.
+ */
+export function slopeStep(ox: number, oz: number, nx: number, nz: number): [number, number] {
+  let s = slopeOf(ox, oz, nx, nz);
+  if (s > MAX_SLOPE) {
+    if (slopeOf(ox, oz, nx, oz) <= MAX_SLOPE) nz = oz;
+    else if (slopeOf(ox, oz, ox, nz) <= MAX_SLOPE) nx = ox;
+    else return [ox, oz];
+    s = slopeOf(ox, oz, nx, nz);
+  }
+  const k = s > 0 ? 1 / (1 + s * 0.9) : 1 / Math.sqrt(1 + s * s);
+  return [ox + (nx - ox) * k, oz + (nz - oz) * k];
+}
 
 export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   const p = w.player;
@@ -63,6 +88,8 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   const oz = p.z;
   let nx = ox + (p.vx + p.kx) * dt;
   let nz = oz + (p.vz + p.kz) * dt;
+  // склоны: в гору — медленнее, отвесные стены (Щель) не пройти; вниз — без рывков
+  [nx, nz] = slopeStep(ox, oz, nx, nz);
   // в воду не заходят; но если вода поднялась под ногами — выбраться можно куда угодно
   const inWater = isWater(ox, oz);
   if (isWater(nx, nz) && !inWater) {

@@ -4,7 +4,7 @@ import type { World } from '../sim/world';
 import { WORLD, groundAt, heightAt, water } from '../proc/terrain';
 import { torchFactor } from '../sim/enemies';
 import { SLUICE, YARD12 } from '../content/night3';
-import { houseGeometry, ruinGeometry, sluiceGeometry } from './models';
+import { boatGeometry, houseGeometry, ruinGeometry, sluiceGeometry } from './models';
 import type { TextureSet } from './textures';
 import { buildWorldView, COLORS, type WorldView } from './worldView';
 import { ActorsView } from './actors';
@@ -155,7 +155,9 @@ export class GameRenderer {
     const c = WORLD.crevice;
     this.sluice.rotation.y = Math.atan2(c.bx - c.ax, c.bz - c.az);
     this.sluice.castShadow = this.sluice.receiveShadow = true;
-    for (const o of [this.yard12, this.ruin, this.sluice]) {
+    this.boat = new THREE.Mesh(boatGeometry(), setMat);
+    this.boat.castShadow = true;
+    for (const o of [this.yard12, this.ruin, this.sluice, this.boat]) {
       o.visible = false;
       this.scene.add(o);
     }
@@ -186,12 +188,19 @@ export class GameRenderer {
   private readonly yard12Win: THREE.MeshBasicMaterial;
   private readonly ruin: THREE.Mesh;
   private readonly sluice: THREE.Mesh;
+  private readonly boat: THREE.Mesh;
+  /** Постановка рассвета: где лодка (null — у пристани) и насколько ушёл под воду двенадцатый двор (0..1). */
+  boatAt: { x: number; z: number } | null = null;
+  yard12Sink = 0;
 
   /** Облик ночи: туман, морось, цветокоррекция, декорации, фонарь. */
   setNight(n: NightDef): void {
     this.baseFog = n.fog;
     this.nightCam = n.cam ?? 1;
     this.yard12.visible = !!n.child;
+    this.boat.visible = !!n.child;
+    this.boatAt = null;
+    this.yard12Sink = 0;
     this.ruin.visible = !!n.ruin;
     this.sluice.visible = !!n.sluice;
     // у ребёнка — керосиновая лампа: тёплая, широкая, короткая
@@ -348,7 +357,17 @@ export class GameRenderer {
     const flood = Math.max(0, water.level - WORLD.waterLevel);
     wv.scale.setScalar(1 + Math.min(4, flood * 7));
     // окна двенадцатого двора гаснут, когда вода поднимается
-    if (this.yard12.visible) this.yard12Win.color.setHex(water.level > -0.6 ? COLORS.windowDark : COLORS.windowLit);
+    if (this.yard12.visible) {
+      this.yard12Win.color.setHex(water.level > -0.6 || this.yard12Sink > 0 ? COLORS.windowDark : COLORS.windowLit);
+      // к утру над водой остаётся только конёк крыши
+      this.yard12.position.y = heightAt(YARD12.x, YARD12.z) - this.yard12Sink * (heightAt(YARD12.x, YARD12.z) + 4.6 - water.level);
+    }
+    if (this.boat.visible) {
+      const bx = this.boatAt?.x ?? WORLD.pier.x1 + 1.1;
+      const bz = this.boatAt?.z ?? (WORLD.pier.z0 + WORLD.pier.z1) / 2 + 1.4;
+      this.boat.position.set(bx, Math.max(water.level, heightAt(bx, bz)) - 0.08 + Math.sin(this.time * 1.3) * 0.04, bz);
+      this.boat.rotation.set(Math.sin(this.time * 0.9) * 0.04, (this.boatAt ? this.time * 0.05 : 0) + Math.PI / 2, Math.sin(this.time * 1.1) * 0.05);
+    }
 
     this.actors.update(w, dt, this.view.barrels);
     this.atmos.update(w, dt, this.flashlight, this.flashlightOn && this.flashlight.intensity > 1, this.camLook.x, this.camLook.z, this.windowGlows);

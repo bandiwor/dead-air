@@ -16,7 +16,10 @@ import { Screens } from '../ui/screens';
 import { Cutscene, type Shot } from './cutscene';
 import type { StrKey } from '../i18n';
 import { doorOf } from '../proc/layout';
-import { WORLD } from '../proc/terrain';
+import { WORLD, heightAt, water } from '../proc/terrain';
+import { Kind } from '../content/enemies';
+import { spawnEnemy } from '../sim/enemies';
+import { YARD12 } from '../content/night3';
 import { Updater, type UpdateStatus } from '../platform/updates';
 import { t } from '../i18n';
 import { handleEvents, nearestEnemy } from './events';
@@ -70,6 +73,8 @@ export class Game {
   private statsT = 0;
   /** Индекс следующей части ночи, которая начнётся после рассветной сцены (или −1). */
   private chainNext = -1;
+  /** Постановка рассветной сцены: что показываем и сколько она уже идёт. */
+  private stage: { kind: 'boat' | 'flood' | 'loop' | 'name' | null; t: number; step: number } = { kind: null, t: 0, step: -1 };
   private readonly installer = new Installer();
   private installCard!: InstallCard;
   /** Предложение установки показывается не чаще раза за запуск и не сразу. */
@@ -265,6 +270,65 @@ export class Game {
     this.screens.showUpdatePrompt(true);
   }
 
+  /**
+   * Рассвет — не только камера: то, о чём говорят субтитры, должно быть видно в кадре.
+   * Симуляция стоит, поэтому сцену двигаем отсюда, только для показа.
+   */
+  private stageDawn(dt: number): void {
+    const st = this.stage;
+    const r = this.renderer;
+    const cut = this.cut;
+    if (!st.kind || !r || !cut) return;
+    st.t += dt;
+    const w = this.world;
+    const p = w.player;
+    const shot = cut.shot;
+    const enter = shot !== st.step;
+    st.step = shot;
+    const ease = (x: number): number => x * x * (3 - 2 * x);
+    if (st.kind === 'boat') {
+      // лодку уносит на середину пруда; к утру дом уходит под воду по конёк
+      const k = ease(Math.min(1, st.t / 7));
+      const sx = WORLD.pier.x1 + 1.1;
+      const sz = (WORLD.pier.z0 + WORLD.pier.z1) / 2 + 1.4;
+      const bx = sx + (WORLD.pond.x + 1 - sx) * k;
+      const bz = sz + (WORLD.pond.z + 2 - sz) * k;
+      r.boatAt = { x: bx, z: bz };
+      p.x = bx;
+      p.z = bz;
+      p.y = water.level - 0.1;
+      p.vx = p.vz = 0;
+      r.flashlightOn = true;
+      r.yard12Sink = shot >= 1 ? 1 : 0;
+      for (let i = 0; i < w.houseLight.length; i++) if (shot >= 1) w.houseLight[i] = false;
+    } else if (st.kind === 'flood') {
+      // вода идёт вниз по Щели и встаёт в деревне по окна
+      water.level = -2.8 + 3.7 * ease(Math.min(1, st.t / 7.5));
+    } else if (st.kind === 'loop') {
+      if (enter && shot === 1) this.amb.setRadio(true);
+    } else if (st.kind === 'name') {
+      if (enter && shot === 1) {
+        // одиннадцать встают из ила вокруг развалин — руки опущены
+        for (let i = 0; i < 11; i++) {
+          const a = (i / 11) * Math.PI * 2;
+          const x = YARD12.x + Math.cos(a) * 4.2;
+          const z = YARD12.z + Math.sin(a) * 4.2;
+          const e = spawnEnemy(w, Kind.Apparition, x, z);
+          if (!e) continue;
+          e.y = heightAt(x, z);
+          e.yaw = Math.atan2(YARD12.z - z, YARD12.x - x);
+          e.state = 1;
+          e.t = 10;
+        }
+      }
+      if (enter && shot === 2) {
+        for (const e of w.enemies) e.active = false;
+        // на дне Глядня — лужа: в ней видно отражение
+        water.level = heightAt(WORLD.pond.x, WORLD.pond.z) + 0.25;
+      }
+    }
+  }
+
   /** Окошко установки по кнопке в настройках — без учёта «позже». */
   private openInstall(): void {
     this.installOffered = true;
@@ -318,7 +382,7 @@ export class Game {
       this.introSeen.add(this.nightIdx);
       this.mode = 'intro';
       this.cut = new Cutscene(NIGHTS[this.nightIdx]!.intro);
-      this.cut.onLine = (k) => this.hud.line(k, 0);
+      this.cut.onLine = (k, d) => this.hud.cue(k, d);
       this.letterbox(true);
       this.hud.setVisible(true);
       this.hud.setTouch(false);
@@ -484,6 +548,7 @@ export class Game {
       if (this.mode === 'play') this.checkBestiary();
     } else if (this.mode === 'intro' || this.mode === 'dawn') {
       const shot = this.cut?.update(dt);
+      if (this.mode === 'dawn') this.stageDawn(dt);
       if (shot) {
         r.shotCamera({ pos: shot.pos, look: shot.look, fov: shot.fov });
         r.fade = 1 - Math.min(1, shot.k * 1.2);
@@ -559,6 +624,7 @@ export class Game {
           const id = end.flag.replace('end:', '');
           if (!this.progress.endings.includes(id)) this.progress.endings.push(id);
         }
+        this.stage = { kind: night.child ? 'boat' : ((end?.flag.replace('end:', '') ?? null) as typeof this.stage.kind), t: 0, step: -1 };
         const nextPart = night.next ? NIGHTS.findIndex((n) => n.id === night.next) : -1;
         this.chainNext = nextPart;
         // рассвет открывает следующую ночь (но не часть той же самой)
@@ -569,7 +635,7 @@ export class Game {
         saveProgress(this.progress);
         this.screens.setDawn(title, sub, t('dawn.stats', { r: this.brokenCount(), n: w2.notesRead.length, f: w2.fragments }), !!this.nextMenuNight(night));
         this.cut = new Cutscene(shots);
-        this.cut.onLine = (k) => this.hud.line(k, 0);
+        this.cut.onLine = (k, d) => this.hud.cue(k, d);
         this.cut.start();
       },
     };

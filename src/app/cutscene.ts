@@ -16,7 +16,8 @@ export class Cutscene {
   private readonly pos = new THREE.Vector3();
   private readonly look = new THREE.Vector3();
   done = false;
-  onLine: (key: StrKey) => void = () => undefined;
+  /** Реплика плана и сколько он длится — субтитр живёт ровно столько же. */
+  onLine: (key: StrKey, dur: number) => void = () => undefined;
 
   constructor(shots: Shot[]) {
     this.shots = shots;
@@ -27,7 +28,16 @@ export class Cutscene {
     this.t = 0;
     this.done = false;
     const s = this.shots[0];
-    if (s?.line) this.onLine(s.line);
+    if (s?.line) this.onLine(s.line, s.dur);
+  }
+
+  /** Номер текущего плана и время в нём (для постановки сцены). */
+  get shot(): number {
+    return this.i;
+  }
+
+  get shotT(): number {
+    return this.t;
   }
 
   skip(): void {
@@ -51,7 +61,7 @@ export class Cutscene {
         this.done = true;
         return null;
       }
-      if (n.line) this.onLine(n.line);
+      if (n.line) this.onLine(n.line, n.dur);
       return this.update(0);
     }
     const k = easeInOut(Math.min(1, this.t / s.dur));

@@ -140,7 +140,7 @@ export const NIGHT1: NightDef = {
     { from: [-34, 30, -78], to: [-14, 22, -66], lookFrom: [-4, 2, -46], lookTo: [-3, 0, -40], dur: 6, fov: 38, line: 'cut.intro.1' },
     { from: [44, 7, 38], to: [33, 5, 32], lookFrom: [17, 0, 19], lookTo: [20, -0.4, 19], dur: 6, fov: 36, line: 'cut.intro.2' },
     { from: [-5, 2.2, 7], to: [-2.5, 3.5, 4.5], lookFrom: [0, 6.6, 0], lookTo: [0, 7, 0], dur: 6, fov: 42, line: 'cut.intro.3' },
-    { from: [1, 4, 10], to: [3.5, 14, 13], lookFrom: [5, 1.2, 0], lookTo: [3.8, 0.5, 2.6], dur: 7, fov: 42, line: 'cut.intro.4' },
+    { from: [1, 4, 10], to: [3.5, 14, 13], lookFrom: [5, 1.2, 0], lookTo: [3.8, 0.5, 2.6], dur: 9, fov: 42, line: 'cut.intro.4' },
   ],
   dawn: [
     { from: [8, 9, 34], to: [12, 6, 30], lookFrom: [18, 0, 18], lookTo: [20, -0.4, 19], dur: 6, fov: 36, line: 'cut.dawn.1' },

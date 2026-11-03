@@ -105,6 +105,19 @@ export class Hud {
     this.toastT = 2.2;
   }
 
+  /**
+   * Субтитр кат-сцены: сбрасывает очередь и показывается сразу, ровно на время плана,
+   * чтобы текст не отставал от картинки.
+   */
+  cue(key: string, secs: number): void {
+    if (!isStrKey(key)) return;
+    this.subQueue = [];
+    const text = t(key);
+    this.subs.textContent = text;
+    this.subs.className = 'subs on style-0';
+    this.subT = Math.max(1.5, secs - 0.35);
+  }
+
   clearSubs(): void {
     this.subQueue = [];
     this.subT = 0;

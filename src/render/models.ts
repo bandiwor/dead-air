@@ -655,3 +655,16 @@ export function sluiceGeometry(): THREE.BufferGeometry {
   b.add(new THREE.TorusGeometry(0.45, 0.05, 4, 12), { pos: [0, 4.3, 0.1], color: 0x4a2c1a });
   return b.build();
 }
+
+/** Лодка-плоскодонка: днище, борта, нос, банка и весло. Нос — в +z. */
+export function boatGeometry(): THREE.BufferGeometry {
+  const b = new Builder(141);
+  const wood = 0x4a3a2a;
+  b.box(1.1, 0.1, 2.8, { pos: [0, 0.05, 0], color: 0x2e241a, jitter: 0.2 });
+  for (const s of [-1, 1]) b.box(0.08, 0.36, 2.8, { pos: [s * 0.55, 0.22, 0], color: wood, jitter: 0.25 });
+  b.box(1.1, 0.36, 0.08, { pos: [0, 0.22, -1.4], color: wood });
+  b.box(0.9, 0.36, 0.08, { pos: [0, 0.3, 1.5], rot: [-0.5, 0, 0], color: wood });
+  b.box(1.0, 0.06, 0.3, { pos: [0, 0.32, -0.2], color: 0x5a4a38 });
+  b.box(0.05, 0.05, 2.1, { pos: [0.4, 0.42, 0.3], rot: [0.05, 0.3, 0], color: 0x6a5a44 });
+  return b.build();
+}

@@ -53,7 +53,12 @@ function rawHeight(x: number, z: number): number {
   const dc = distToSegment(x, z, c.ax, c.az, c.bx, c.bz);
   const hillMask = smoothstep(hill.r * 1.4, hill.r * 0.6, dh);
   const cut = 1 - smoothstep(c.w * 0.35, c.w, dc);
-  h -= cut * c.depth * hillMask;
+  // со стороны деревни в Щель ведёт пологий спуск; верховье (заслонка) — глухое
+  const sx = c.bx - c.ax;
+  const sz = c.bz - c.az;
+  const along = ((x - c.ax) * sx + (z - c.az) * sz) / (sx * sx + sz * sz);
+  const ramp = smoothstep(-0.02, 0.3, along);
+  h -= cut * c.depth * hillMask * ramp;
 
   const p = WORLD.pond;
   const dp = Math.hypot(x - p.x, z - p.z);

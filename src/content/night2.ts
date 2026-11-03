@@ -132,9 +132,9 @@ export const NIGHT2: NightDef = {
   ],
   fragments: ['frag2.1', 'frag2.2', 'frag2.3', 'frag2.4', 'frag2.5', 'frag2.6', 'frag2.7', 'frag2.8', 'frag2.9', 'frag2.10'],
   intro: [
-    { from: [40, 12, 40], to: [34, 8, 32], lookFrom: [27, -0.8, 19], lookTo: [26, -0.8, 19], dur: 6, fov: 38, line: 'cut2.intro.1' },
+    { from: [40, 12, 40], to: [34, 8, 32], lookFrom: [27, -0.8, 19], lookTo: [26, -0.8, 19], dur: 7, fov: 38, line: 'cut2.intro.1' },
     { from: [9, 3, 1], to: [8, 2.6, -0.5], lookFrom: [6.5, 1.4, -3], lookTo: [6.5, 1.2, -3.2], dur: 6, fov: 40, line: 'cut2.intro.2' },
-    { from: [2, 5, 10], to: [3.5, 14, 13], lookFrom: [4, 1, 2], lookTo: [3.8, 0.5, 2.6], dur: 6, fov: 42, line: 'cut2.intro.3' },
+    { from: [2, 5, 10], to: [3.5, 14, 13], lookFrom: [4, 1, 2], lookTo: [3.8, 0.5, 2.6], dur: 7, fov: 42, line: 'cut2.intro.3' },
   ],
   dawn: [
     { from: [10, 8, 34], to: [14, 5, 30], lookFrom: [26, -0.8, 19], lookTo: [27, -0.8, 19], dur: 6, fov: 36, line: 'cut2.dawn.1' },

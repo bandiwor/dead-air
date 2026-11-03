@@ -70,7 +70,7 @@ export const NIGHT3A: NightDef = {
   extras: [
     {
       id: 'boat', prompt: 'prompt.boat', rule: false, at: 'pierEnd', r: 2, hold: 1.2, enabled: false, once: true,
-      effects: [{ objective: '', marker: null }, { line: 'n3a.inBoat' }, { wait: 1.5 }, { dawn: true }],
+      effects: [{ objective: '', marker: null }, { line: 'n3a.inBoat' }, { wait: 4 }, { dawn: true }],
     },
   ],
   fragments: ['frag2.1', 'frag2.2', 'frag2.3', 'frag2.4', 'frag2.5', 'frag2.6', 'frag2.7', 'frag2.8', 'frag2.9', 'frag2.10'],
@@ -81,7 +81,8 @@ export const NIGHT3A: NightDef = {
   ],
   dawn: [
     { from: [16, 10, 36], to: [22, 8, 32], lookFrom: [27, -0.5, 19], lookTo: [28, -0.5, 19], dur: 7, fov: 38, line: 'cut3a.d1' },
-    { from: [-10, 9, 14], to: [-4, 8, 8], lookFrom: [0, 1, 0], lookTo: [2, 1, -2], dur: 6, fov: 42, line: 'cut3a.d2' },
+    // утро: на месте двенадцатого двора из воды торчит только конёк крыши
+    { from: [22, 4.5, 36], to: [26, 3.5, 33], lookFrom: [35, -0.3, 25], lookTo: [35, -0.1, 25.5], dur: 7, fov: 40, line: 'cut3a.d2' },
   ],
 };
 
@@ -149,15 +150,15 @@ export const NIGHT3B: NightDef = {
     { id: 'letter4', prompt: 'prompt.read', rule: false, at: { x: NAME_LETTER[0] + 1.2, z: NAME_LETTER[1] }, r: 1.4, hold: 0, enabled: false, once: true, glint: true, effects: [{ note: 'note.letterSluice' }, { letter: 'Я' }] },
     {
       id: 'open', prompt: 'prompt.sluice', rule: false, at: { x: SLUICE.x + 0.8, z: SLUICE.z + 1 }, r: 1.1, hold: 2.2, enabled: false, once: true,
-      effects: [{ flag: 'end:flood' }, { line: 'end.flood.0' }, { wait: 2 }, { dawn: true }],
+      effects: [{ flag: 'end:flood' }, { line: 'end.flood.0' }, { wait: 4 }, { dawn: true }],
     },
     {
       id: 'throw', prompt: 'prompt.throwKey', rule: false, at: { x: SLUICE.x - 1.6, z: SLUICE.z + 2 }, r: 1.1, hold: 1.5, enabled: false, once: true,
-      effects: [{ flag: 'end:loop' }, { line: 'end.loop.0' }, { wait: 2 }, { dawn: true }],
+      effects: [{ flag: 'end:loop' }, { line: 'end.loop.0' }, { wait: 4 }, { dawn: true }],
     },
     {
       id: 'name', prompt: 'prompt.name', rule: true, at: { x: SLUICE.x - 0.2, z: SLUICE.z + 3.2 }, r: 1.2, hold: 2.5, enabled: false, once: true,
-      effects: [{ flag: 'broke:5' }, { flag: 'end:name' }, { line: 'end.name.0' }, { wait: 2.5 }, { dawn: true }],
+      effects: [{ flag: 'broke:5' }, { flag: 'end:name' }, { line: 'end.name.0' }, { wait: 4.5 }, { dawn: true }],
     },
   ],
   fragments: ['frag3.1', 'frag3.2', 'frag3.3', 'frag3.4', 'frag3.5', 'frag3.6', 'frag3.7', 'frag3.8', 'frag3.9', 'frag3.10'],
@@ -174,7 +175,7 @@ export const NIGHT3B: NightDef = {
     {
       flag: 'end:flood', title: 'end.flood.t', sub: 'end.flood.s',
       dawn: [
-        { from: [-4, 6, -48], to: [-4, 12, -38], lookFrom: [-2, 0, -56], lookTo: [0, -1, -10], dur: 6, fov: 40, line: 'end.flood.1' },
+        { from: [-4, 6, -48], to: [-4, 12, -38], lookFrom: [-2, 0, -56], lookTo: [0, -1, -10], dur: 7, fov: 40, line: 'end.flood.1' },
         { from: [12, 14, 20], to: [6, 10, 14], lookFrom: [0, 0, 0], lookTo: [-6, 0, -4], dur: 7, fov: 44, line: 'end.flood.2' },
       ],
     },
@@ -190,7 +191,7 @@ export const NIGHT3B: NightDef = {
       dawn: [
         { from: [-4, 5, -46], to: [-3, 7, -50], lookFrom: [-2, 1.5, -55], lookTo: [-2, 1.5, -56], dur: 6, fov: 40, line: 'end.name.1' },
         { from: [44, 10, 38], to: [38, 7, 32], lookFrom: [27, -2.4, 19], lookTo: [34, -2.4, 24], dur: 7, fov: 38, line: 'end.name.2' },
-        { from: [33, 2, 29], to: [34, 1.4, 27.5], lookFrom: [35, -2.5, 25], lookTo: [35, -2.6, 24.8], dur: 6, fov: 44, line: 'end.name.3' },
+        { from: [31, 1.2, 23], to: [29.5, 0.2, 21.2], lookFrom: [27, -2.3, 19], lookTo: [27, -2.4, 19], dur: 7, fov: 44, line: 'end.name.3' },
       ],
     },
   ],

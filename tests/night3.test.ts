@@ -6,7 +6,9 @@ import { spawnEnemy } from '../src/sim/enemies';
 import { damageEnemy } from '../src/sim/combat';
 import { WORLD, heightAt, isWater, water } from '../src/proc/terrain';
 import type { World } from '../src/sim/world';
-import { input, makeWorld, step } from './helpers/sim';
+import { input, makeWorld, step, walkTo } from './helpers/sim';
+import { slopeStep } from '../src/sim/player';
+import { t } from '../src/i18n';
 
 /** Встать на интерактив и удерживать действие, пока он не сработает. */
 function use(w: World, id: string, secs = 4): void {
@@ -59,7 +61,7 @@ describe('ночь третья: «Весна»', () => {
     step(w, input(), 4);
     expect(w.flags.has('toBoat')).toBe(true);
     expect(w.interactables.find((i) => i.id === 'boat')!.enabled).toBe(true);
-    use(w, 'boat', 5);
+    use(w, 'boat', 7);
     expect(w.state).toBe('dawn');
   });
 
@@ -156,7 +158,7 @@ describe('ночь третья: «Щель»', () => {
       w.flags.add('choirDown');
       for (const l of ['letters:1', 'letters:2', 'letters:3', 'letters:4']) w.flags.add(l);
       step(w, input(), 0.5);
-      use(w, id, 6);
+      use(w, id, 8);
       expect(w.flags.has(flag), id).toBe(true);
       expect(w.state, id).toBe('dawn');
       if (id === 'name') expect(w.flags.has('broke:5')).toBe(true);
@@ -175,5 +177,76 @@ describe('ночь третья: «Щель»', () => {
   it('у каждой концовки есть сцена, заголовок и подпись', () => {
     expect(NIGHT3B.endings!.map((e) => e.flag).sort()).toEqual(['end:flood', 'end:loop', 'end:name']);
     for (const e of NIGHT3B.endings!) expect(e.dawn.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Щель: рельеф', () => {
+  const C = WORLD.crevice;
+  const at = (t: number): [number, number] => [C.ax + (C.bx - C.ax) * t, C.az + (C.bz - C.az) * t];
+
+  it('из деревни по пологому спуску доходят до заслонки и до всех мест концовок', () => {
+    for (const id of ['letter3', 'letter4', 'open', 'throw', 'name']) {
+      const w = makeWorld(4, { ...NIGHT3B, waves: [], beats: [] });
+      w.cheats.freeze = true;
+      w.player.x = 0;
+      w.player.z = -14;
+      const route: [number, number][] = [at(-0.25), at(0.1), at(0.4), at(0.7), at(0.92)];
+      for (const [x, z] of route) walkTo(w, x, z, [], 30);
+      const it = w.interactables.find((i) => i.id === id)!;
+      walkTo(w, it.x, it.z, [], 15);
+      expect(Math.hypot(w.player.x - it.x, w.player.z - it.z), id).toBeLessThan(it.r);
+    }
+  });
+
+  it('по отвесной стене Щели не выбраться и не «взлететь»', () => {
+    const w = makeWorld(4, { ...NIGHT3B, waves: [], beats: [] });
+    w.cheats.freeze = true;
+    const [x, z] = at(0.6);
+    w.player.x = x;
+    w.player.z = z;
+    // перпендикуляр к Щели
+    const nx = C.bz - C.az;
+    const nz = -(C.bx - C.ax);
+    const l = Math.hypot(nx, nz);
+    const y0 = heightAt(x, z);
+    step(w, input({ mx: nx / l, mz: nz / l }), 4);
+    expect(w.player.y - y0).toBeLessThan(2);
+  });
+
+  it('в гору медленнее, чем по ровному', () => {
+    const flat = slopeStep(0, 0, 0.1, 0);
+    expect(flat[0]).toBeCloseTo(0.1, 3);
+    // подъём по склону Щели к верховью
+    const [ax, az] = at(-0.25);
+    const [bx, bz] = at(-0.05);
+    const d = Math.hypot(bx - ax, bz - az);
+    const up = slopeStep(ax, az, ax + ((bx - ax) / d) * 0.1, az + ((bz - az) / d) * 0.1);
+    expect(Math.hypot(up[0] - ax, up[1] - az)).toBeLessThan(0.1);
+  });
+});
+
+describe('кат-сцены успевают за субтитрами', () => {
+  it('каждый план длится не меньше, чем читается его реплика', () => {
+    for (const n of NIGHTS) {
+      const shots = [...n.intro, ...n.dawn, ...(n.endings ?? []).flatMap((e) => e.dawn)];
+      for (const s of shots) {
+        if (!s.line) continue;
+        const len = t(s.line).length;
+        expect(s.dur, `${n.id}: ${s.line}`).toBeGreaterThanOrEqual(Math.max(4, len * 0.065 + 1));
+      }
+    }
+  });
+
+  it('реплика перед рассветом успевает прозвучать до начала сцены', () => {
+    for (const n of NIGHTS) {
+      for (const x of n.extras) {
+        const i = x.effects.findIndex((e) => 'dawn' in e);
+        if (i < 0) continue;
+        const before = x.effects.slice(0, i);
+        if (!before.some((e) => 'line' in e)) continue;
+        const wait = before.reduce((a, e) => a + ('wait' in e ? e.wait : 0), 0);
+        expect(wait, `${n.id}: ${x.id}`).toBeGreaterThanOrEqual(3.6);
+      }
+    }
   });
 });
