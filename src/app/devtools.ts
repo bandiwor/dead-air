@@ -217,6 +217,7 @@ export class DevTools {
           ),
           action(t('dbg.resetBeast'), () => {
             g.progress.seen = [];
+            g.progress.items.length = 0;
             saveProgress(g.progress);
           }),
           action(t('dbg.unlock'), () => {

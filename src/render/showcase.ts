@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Kind } from '../content/enemies';
 import type { TextureSet } from './textures';
-import { choirGeometry, humanoidGeometry, muteGeometry, unseeingGeometry, whispererGeometry } from './models';
+import { ITEMS, ITEM_SHOWCASE_BASE } from '../content/items';
+import { choirGeometry, itemGeometry, weaponGeometry, humanoidGeometry, muteGeometry, unseeingGeometry, whispererGeometry } from './models';
 
 /**
  * Витрина существа для стоп-кадра бестиария: отдельная маленькая сцена с театральным светом,
@@ -41,6 +42,17 @@ export class Showcase {
     let geo: THREE.BufferGeometry;
     let map = this.tex.skin;
     let k = 1.6;
+    const item = kind >= ITEM_SHOWCASE_BASE ? ITEMS[kind - ITEM_SHOWCASE_BASE] : undefined;
+    if (item) {
+      // находка: оружие повёрнуто боком к камере, прочее — как лежит
+      geo = item.model.startsWith('weapon:') ? weaponGeometry(item.model.slice(7)).rotateY(Math.PI / 2) : itemGeometry(item.model);
+      geo.computeBoundingSphere();
+      const im = new THREE.MeshLambertMaterial({ vertexColors: true });
+      im.color.setScalar(1.6);
+      const mi = new THREE.Mesh(geo, im);
+      this.meshes.set(kind, mi);
+      return mi;
+    }
     if (kind === Kind.Whisperer) geo = whispererGeometry();
     else if (kind === Kind.Mute) geo = muteGeometry();
     else if (kind === Kind.Unseeing) geo = unseeingGeometry();

@@ -506,3 +506,26 @@ button {
 .setting.danger .val { color: var(--red); }
 .setting.danger.armed { border-color: var(--red); }
 .setting.danger.armed .val { animation: blink 0.6s steps(2) infinite; }
+
+/* маленькая карточка находки */
+.pickup-card {
+  position: absolute;
+  left: 50%;
+  /* выше двухстрочных субтитров */
+  bottom: calc(118px + var(--safe-b));
+  transform: translate(-50%, 10px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 6px;
+  background: rgba(5, 8, 11, 0.86);
+  border: 1px solid rgba(232, 163, 61, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  z-index: 3;
+}
+.pickup-card.on { opacity: 1; transform: translate(-50%, 0); }
+.pickup-icon { width: 36px; height: 36px; display: grid; place-items: center; color: var(--sodium); border: 1px solid var(--line); }
+.pickup-name { color: var(--ink); font-size: 12px; letter-spacing: 0.12em; }
+.pickup-count { color: var(--sodium); font-size: 11px; letter-spacing: 0.08em; margin-top: 2px; }

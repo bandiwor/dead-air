@@ -162,6 +162,8 @@ export interface Player {
   /** Перезарядка крика и заряд фонаря (0..1). */
   voiceCd: number;
   battery: number;
+  /** Выстрел на этом тике: индекс оружия + 1 (0 — не стрелял). Для записи прошлого (Отголосок). */
+  fired: number;
 }
 
 export type InteractKind = 'knock' | 'note' | 'custom';

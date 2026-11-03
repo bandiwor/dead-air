@@ -24,6 +24,8 @@ export interface EventCtx {
   onDeath: () => void;
   onDawn: () => void;
   onNote: (key: string) => void;
+  /** Подобрана находка: kind/a — как в Pickup, amount — сколько досталось. */
+  onPickup: (kind: number, a: number, amount: number) => void;
 }
 
 /** Окна: временные «мигания» света в домах (сцена «В доме зажгли свет»). */
@@ -76,6 +78,13 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
   switch (e.type) {
     case 'shot': {
       const wd = WEAPONS[e.a]!;
+      if (e.c === 1) {
+        // выстрел Отголоска: ваш же выстрел, но глухой, как из-под воды, и вспышка холодная
+        audio.play(wd.sound, { x: e.x, z: e.z, vol: 0.7, rate: 0.82, reverb: 0.9, low: true });
+        r.fx.muzzleFlash(e.x, e.y, e.z, e.b, 0.6);
+        r.atmos.burst(e.x, e.y, e.z, 3, 0x7fd6c2, 0.6, 0.12);
+        break;
+      }
       audio.play(wd.sound, { x: e.x, z: e.z, vol: 1, reverb: 0.45 });
       r.fx.muzzleFlash(e.x, e.y, e.z, e.b, wd.id === 'shotgun' || wd.id === 'rifle' ? 1.4 : wd.id === 'flaregun' ? 0.6 : 1);
       r.atmos.burst(e.x, e.y, e.z, wd.id === 'smg' ? 3 : 4.5, 0xffc070, c.reduceFlashes ? 0.4 : 0.9, 0.08);
@@ -86,6 +95,12 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
     }
     case 'tracer': {
       const hot = e.c === 1;
+      if (e.c >= 3) {
+        // трассер из прошлого — фосфорный; 4 — попал в вас
+        r.fx.tracers.add(e.x, e.y, e.z, e.a, e.y - 0.3, e.b, 0.45, 1.3, 1.15);
+        if (e.c === 4) r.glitch = Math.max(r.glitch, 0.6);
+        break;
+      }
       r.fx.tracers.add(e.x, e.y, e.z, e.a, e.y - 0.3, e.b, 1.4, hot ? 0.7 : 1.0, hot ? 0.4 : 0.55);
       if (e.c === 2) r.fx.impact(e.a, e.y - 0.4, e.b, 0, 0, false);
       break;
@@ -151,8 +166,7 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
     case 'pickup': {
       audio.play('pickup', { vol: 0.8 });
       vibrate([10, 30, 10]);
-      const text = e.a === 1 ? t('pickup.weapon', { name: t(WEAPONS[e.b]!.nameKey) }) : e.a === 2 ? t('pickup.dynamite') : e.a === 3 ? t('pickup.med') : e.a === 4 ? t('pickup.battery') : t('pickup.ammo');
-      hud.toastText(text);
+      c.onPickup(e.a, e.b, e.c);
       break;
     }
     case 'throw':

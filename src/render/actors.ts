@@ -4,7 +4,8 @@ import type { World } from '../sim/world';
 import { WORLD, heightAt } from '../proc/terrain';
 import type { TextureSet } from './textures';
 import { creature } from './materials';
-import { choirGeometry, crateGeometry, dynamiteGeometry, faceGeometry, humanoidGeometry, muteGeometry, unseeingGeometry, whispererGeometry } from './models';
+import { WEAPONS } from '../content/weapons';
+import { HAND_R, choirGeometry, dynamiteGeometry, itemGeometry, weaponGeometry, faceGeometry, humanoidGeometry, muteGeometry, unseeingGeometry, whispererGeometry } from './models';
 
 interface Herd {
   mesh: THREE.InstancedMesh;
@@ -44,8 +45,11 @@ export class ActorsView {
   /** Младший Ивашов во флешбэке: ниже ростом, без оружия, с лампой. */
   private readonly child: Herd;
   private readonly herds: Record<number, Herd>;
-  private readonly crates: THREE.InstancedMesh;
-  private readonly longCrates: THREE.InstancedMesh;
+  /** Оружие в руках (игрок, Отголоски) — по модели на ствол. */
+  private readonly guns: Herd[];
+  /** Находки на земле: оружие (по стволу) и прочее (патроны, шашки, аптечка, батарейки). */
+  private readonly groundGuns: THREE.InstancedMesh[];
+  private readonly groundItems: Record<number, THREE.InstancedMesh>;
   private readonly dynamite: THREE.InstancedMesh;
   readonly face: THREE.Group;
   readonly faceJaw: THREE.Mesh;
@@ -70,7 +74,7 @@ export class ActorsView {
     this.herds = {
       [Kind.Whisperer]: herd(whispererGeometry(), skin(1.7), 48),
       [Kind.Mute]: herd(muteGeometry(), skin(1.6), 8),
-      [Kind.Echo]: herd(humanoidGeometry({ height: 1.8, coat: 0x6a7672, skin: 0x8a9490, pants: 0x4a5450, flashlight: false }), echoMat, 4),
+      [Kind.Echo]: herd(humanoidGeometry({ height: 1.8, coat: 0x6a7672, skin: 0x8a9490, pants: 0x4a5450, flashlight: true }), echoMat, 4),
       [Kind.Apparition]: herd(
         humanoidGeometry({ height: 2.35, coat: 0x060606, skin: 0x0a0a0a, pants: 0x050505, thin: 0.7, armLen: 1.05, headTilt: 0.45 }),
         new THREE.MeshLambertMaterial({ vertexColors: true, color: 0x111111 }),
@@ -83,12 +87,25 @@ export class ActorsView {
     this.root.add(this.player.mesh, this.child.mesh);
     for (const h of Object.values(this.herds)) this.root.add(h.mesh);
 
-    const crateMat = new THREE.MeshLambertMaterial({ map: tex.planks, vertexColors: true, emissive: 0x2a1a06 });
-    crateMat.color.setScalar(1.6);
-    this.crates = new THREE.InstancedMesh(crateGeometry(false), crateMat, 24);
-    this.longCrates = new THREE.InstancedMesh(crateGeometry(true), crateMat, 8);
+    const gunMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    gunMat.color.setScalar(1.5);
+    this.guns = WEAPONS.map((wd) => {
+      const hgun = herd(weaponGeometry(wd.id).translate(...HAND_R), gunMat, 5);
+      this.root.add(hgun.mesh);
+      return hgun;
+    });
+    // находки чуть светятся тёплым — их видно в темноте, как раньше ящики
+    const lootMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x2a1a06 });
+    lootMat.color.setScalar(1.5);
+    this.groundGuns = WEAPONS.map((wd) => new THREE.InstancedMesh(weaponGeometry(wd.id).rotateZ(Math.PI / 2).translate(0, 0.05, 0).scale(1.25, 1.25, 1.25), lootMat, 4));
+    this.groundItems = {
+      0: new THREE.InstancedMesh(itemGeometry('ammo'), lootMat, 12),
+      2: new THREE.InstancedMesh(itemGeometry('dynamite'), lootMat, 12),
+      3: new THREE.InstancedMesh(itemGeometry('med'), lootMat, 12),
+      4: new THREE.InstancedMesh(itemGeometry('battery'), lootMat, 12),
+    };
     this.dynamite = new THREE.InstancedMesh(dynamiteGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), 16);
-    for (const m of [this.crates, this.longCrates, this.dynamite]) {
+    for (const m of [...this.groundGuns, ...Object.values(this.groundItems), this.dynamite]) {
       m.count = 0;
       m.frustumCulled = false;
       m.castShadow = true;
@@ -96,7 +113,7 @@ export class ActorsView {
     }
 
     // лицо светится собственным бледным светом — оно должно читаться даже в полной темноте
-    this.glints = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.07, 0), new THREE.MeshBasicMaterial({ color: 0xffc070 }), 16);
+    this.glints = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.07, 0), new THREE.MeshBasicMaterial({ color: 0xffc070 }), 32);
     this.glints.count = 0;
     this.glints.frustumCulled = false;
     this.root.add(this.glints);
@@ -127,6 +144,12 @@ export class ActorsView {
     ph.mesh.visible = true;
     other.mesh.count = 0;
     commit(ph);
+    const gunCount = this.guns.map(() => 0);
+    if (!isChild && p.alive && p.owned[p.weapon]) {
+      const g = this.guns[p.weapon]!;
+      this.writeInstance(g, 0, p.x, p.y, p.z, p.yaw, this.playerPhase, Math.min(1, speed / 4.7) * 0.75, p.invuln > 0.25 ? 0.6 : 0, 1, 0, 0, 0);
+      gunCount[p.weapon] = 1;
+    }
 
     // существа
     const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -160,7 +183,8 @@ export class ActorsView {
       } else if (e.kind === Kind.Echo) {
         stride = 2.3;
         amp = 0.6;
-        fade = e.litAny ? 1 : dist < 3.5 ? 0.5 : 0.18;
+        // вы сами в прошлом: в темноте — едва различимый силуэт, в свете — целиком
+        fade = e.delay ? 0 : e.litAny ? 1 : dist < 6 ? 0.55 : 0.3;
         rim = 1;
         glitch = 0.04;
       } else if (e.kind === Kind.Unseeing) {
@@ -194,26 +218,46 @@ export class ActorsView {
       const y = e.y + (e.kind === Kind.Whisperer && e.y < WORLD.waterLevel ? 0 : 0);
       const scale = e.kind === Kind.Choir ? 0.75 + (e.hp / Math.max(1, e.maxHp)) * 0.45 : 1;
       this.writeInstance(h, i, e.x, y, e.z, e.yaw, ph, amp, e.flash, fade, glitch, rim, lean, scale);
+      // Отголосок держит то же оружие, что держали вы
+      if (e.kind === Kind.Echo) {
+        const wi = Math.round(e.tx);
+        const g = this.guns[wi];
+        if (g && gunCount[wi]! < 5) this.writeInstance(g, gunCount[wi]!++, e.x, y, e.z, e.yaw, ph, amp, e.flash, fade, glitch, rim, lean);
+      }
     }
     for (const [k, h] of Object.entries(this.herds)) {
       h.mesh.count = counts[Number(k)]!;
       commit(h);
     }
+    this.guns.forEach((g, i) => {
+      g.mesh.count = gunCount[i]!;
+      commit(g);
+    });
 
     // находки
-    let nc = 0;
-    let nl = 0;
+    const gc = this.groundGuns.map(() => 0);
+    const ic: Record<number, number> = { 0: 0, 2: 0, 3: 0, 4: 0 };
     for (const pk of w.pickups) {
       if (!pk.active) continue;
-      const bob = Math.sin(this.time * 2 + pk.x) * 0.04;
-      m4.compose(v.set(pk.x, heightAt(pk.x, pk.z) + 0.02 + bob, pk.z), q.setFromAxisAngle(UP, pk.x * 3.1), sc.set(1, 1, 1));
-      if (pk.kind === 1) this.longCrates.setMatrixAt(nl++, m4);
-      else this.crates.setMatrixAt(nc++, m4);
+      // лежит на земле и медленно поворачивается — чтобы глаз зацепился
+      m4.compose(v.set(pk.x, heightAt(pk.x, pk.z) + 0.02, pk.z), q.setFromAxisAngle(UP, pk.x * 3.1 + this.time * 0.6), sc.set(1, 1, 1));
+      if (pk.kind === 1) {
+        const mesh = this.groundGuns[pk.a];
+        if (mesh && gc[pk.a]! < 4) mesh.setMatrixAt(gc[pk.a]!++, m4);
+      } else {
+        const mesh = this.groundItems[pk.kind] ?? this.groundItems[0]!;
+        const k = pk.kind in ic ? pk.kind : 0;
+        if (ic[k]! < 12) mesh.setMatrixAt(ic[k]!++, m4);
+      }
     }
-    this.crates.count = nc;
-    this.longCrates.count = nl;
-    this.crates.instanceMatrix.needsUpdate = true;
-    this.longCrates.instanceMatrix.needsUpdate = true;
+    this.groundGuns.forEach((m, i) => {
+      m.count = gc[i]!;
+      m.instanceMatrix.needsUpdate = true;
+    });
+    for (const [k, m] of Object.entries(this.groundItems)) {
+      m.count = ic[Number(k)]!;
+      m.instanceMatrix.needsUpdate = true;
+    }
 
     // непрочитанные записки в открытых домах
     let ng = 0;
@@ -224,6 +268,13 @@ export class ActorsView {
       const pulse = 0.8 + Math.sin(this.time * 4 + it.x) * 0.35;
       m4.compose(v.set(it.x, heightAt(it.x, it.z) + 1.0 + Math.sin(this.time * 2) * 0.05, it.z), q.setFromAxisAngle(UP, this.time * 1.5), sc.set(pulse, pulse * 1.4, pulse));
       if (ng < 16) this.glints.setMatrixAt(ng++, m4);
+    }
+    // находки на земле — та же янтарная искра, что у записок: видно издалека и в темноте
+    for (const pk of w.pickups) {
+      if (!pk.active || ng >= 32) continue;
+      const pulse = 0.7 + Math.sin(this.time * 4 + pk.x) * 0.3;
+      m4.compose(v.set(pk.x, heightAt(pk.x, pk.z) + 0.55 + Math.sin(this.time * 2 + pk.z) * 0.05, pk.z), q.setFromAxisAngle(UP, this.time * 1.5), sc.set(pulse, pulse * 1.4, pulse));
+      this.glints.setMatrixAt(ng++, m4);
     }
     this.glints.count = ng;
     this.glints.instanceMatrix.needsUpdate = true;

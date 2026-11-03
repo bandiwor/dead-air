@@ -1,9 +1,9 @@
 import { clamp, wrapAngle } from '../core/math';
 import { ENEMIES, Kind } from '../content/enemies';
 import { WORLD, groundAt, heightAt, water } from '../proc/terrain';
-import { TRAIL_SIZE, type World } from './world';
+import { ECHO_DELAY, type World } from './world';
 import type { Enemy } from './types';
-import { damagePlayer, killEnemy } from './combat';
+import { damagePlayer, echoFire, killEnemy } from './combat';
 import { steerAround } from './collision';
 import { houseAt, toLocal } from './houses';
 import { doorOf } from '../proc/layout';
@@ -49,24 +49,20 @@ export function spawnEnemy(w: World, kind: Kind, x: number, z: number, fake = fa
   e.yaw = Math.atan2(w.player.z - z, w.player.x - x);
   e.delay = 0;
   if (kind === Kind.Echo) {
-    e.delay = 46; // ≈ 5.5 м позади по вашему пути
-    const pos = trailAt(w, e.delay);
-    e.x = pos[0];
-    e.z = pos[1];
+    // появляется там, где вы были 5 секунд назад
+    const i = w.pastAt(ECHO_DELAY);
+    if (i !== null) {
+      e.x = w.past[i]!;
+      e.z = w.past[i + 1]!;
+      e.yaw = w.past[i + 2]!;
+      e.tx = w.past[i + 3]!;
+    }
+    e.atkCd = 1.5;
     w.flags.add('echoSeen');
   }
   if (kind === Kind.Mute) w.flags.add('muteSeen');
   w.emit('spawn', e.x, e.y, e.z, kind, fake ? 1 : 0);
   return e;
-}
-
-const tmp: [number, number] = [0, 0];
-function trailAt(w: World, back: number): [number, number] {
-  const idx = Math.max(0, w.trailCount - 1 - back);
-  const i = (idx % TRAIL_SIZE) * 2;
-  tmp[0] = w.trail[i]!;
-  tmp[1] = w.trail[i + 1]!;
-  return tmp;
 }
 
 export function updateEnemies(w: World, dt: number): void {
@@ -293,33 +289,40 @@ function mute(w: World, e: Enemy, dist: number, dt: number): void {
   }
 }
 
+/**
+ * Отголосок — вы сами, ECHO_DELAY тиков (5 с) назад. Проигрывает записанное прошлое точь-в-точь:
+ * тот же путь, тот же прицел, то же оружие, те же выстрелы — и они ранят вас нынешнего.
+ * Встанете на месте — через 5 секунд прошлое придёт туда, где вы стоите.
+ */
 function echo(w: World, e: Enemy, dist: number, dt: number): void {
   const p = w.player;
-  // Отголосок — это ваш путь, отстающий на e.delay отсчётов. Стоите — он тоже стоит.
-  if (p.stillT > 2.6) {
-    w.emit('vanish', e.x, e.y, e.z, e.kind, 1);
-    e.active = false;
-    return;
-  }
-  if (p.moving) e.delay = Math.max(6, e.delay - dt * 2.4);
-  const pos = trailAt(w, Math.round(e.delay));
+  const i = w.pastAt(ECHO_DELAY);
+  e.delay = i === null ? 1 : 0;
+  if (i === null) return; // прошлого ещё не накопилось — ждёт, невидимый
+  const b = w.past;
   const ox = e.x;
   const oz = e.z;
-  e.x = pos[0];
-  e.z = pos[1];
-  const moved = Math.hypot(e.x - ox, e.z - oz);
-  if (moved > 0.001) e.yaw = Math.atan2(e.z - oz, e.x - ox);
-  e.stepAcc += moved;
+  e.x = b[i]!;
+  e.z = b[i + 1]!;
+  e.yaw = b[i + 2]!;
+  e.tx = b[i + 3]!;
+  const flags = b[i + 4]!;
+  // скорость — только для анимации шага
+  e.vx = (e.x - ox) / Math.max(dt, 1e-6);
+  e.vz = (e.z - oz) / Math.max(dt, 1e-6);
+  e.stepAcc += Math.hypot(e.x - ox, e.z - oz);
   if (e.stepAcc > 1.05) {
     e.stepAcc = 0;
     w.emit('echoStep', e.x, e.y, e.z);
   }
-  if (dist < e.r + PLAYER_R + 0.2 && e.atkCd <= 0) {
+  if (flags & 2) echoFire(w, e, e.tx, e.yaw);
+  // прошлое догнало: удар — и Отголосок рассыпается
+  if (dist < e.r + PLAYER_R + 0.15 && e.atkCd <= 0) {
     damagePlayer(w, ENEMIES[Kind.Echo].dmg, e.x, e.z, 4);
     w.flags.add('broke:3');
     p.sanity = Math.max(0, p.sanity - 14);
-    e.atkCd = 1;
-    e.delay = 46; // отпрянул назад по следу
+    w.emit('vanish', e.x, e.y, e.z, e.kind, 1);
+    e.active = false;
   }
 }
 

@@ -2,6 +2,7 @@ import { WEAPONS } from '../content/weapons';
 import { Kind } from '../content/enemies';
 import { groundAt, heightAt, water } from '../proc/terrain';
 import { rayCircle } from './collision';
+import { PLAYER_R } from './player';
 import type { World } from './world';
 import type { Enemy } from './types';
 
@@ -13,6 +14,7 @@ export function fireWeapon(w: World): void {
   const wd = WEAPONS[p.weapon]!;
   if (!w.cheats.ammo) p.mag[p.weapon]! -= 1;
   p.cooldown = wd.rate;
+  p.fired = p.weapon + 1;
   const mx = p.x + Math.cos(p.yaw) * MUZZLE;
   const mz = p.z + Math.sin(p.yaw) * MUZZLE;
   w.emit('shot', mx, p.y + 1.15, mz, p.weapon, p.yaw);
@@ -79,6 +81,37 @@ export function fireWeapon(w: World): void {
       falloffDmg *= 0.7;
     }
     w.emit('tracer', mx, p.y + 1.15, mz, mx + dx * tEnd, mz + dz * tEnd, hitType);
+  }
+}
+
+/**
+ * Выстрел Отголоска: ваш собственный выстрел из прошлого — с того же места, в ту же сторону,
+ * из того же оружия. Ранит только вас (врагов прошлого здесь уже нет). Шум не поднимает.
+ */
+export function echoFire(w: World, e: Enemy, weapon: number, yaw: number): void {
+  const wd = WEAPONS[weapon];
+  if (!wd) return;
+  const p = w.player;
+  const mx = e.x + Math.cos(yaw) * MUZZLE;
+  const mz = e.z + Math.sin(yaw) * MUZZLE;
+  w.emit('shot', mx, e.y + 1.15, mz, weapon, yaw, 1);
+  if (wd.kind === 'flare') return;
+  let dealt = 0;
+  for (let k = 0; k < wd.pellets; k++) {
+    const a = yaw + (w.rng.next() * 2 - 1) * wd.spread;
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    const range = wd.range;
+    const tStatic = w.statics.raycast(mx, mz, dx, dz, range);
+    const t = rayCircle(mx, mz, dx, dz, p.x, p.z, PLAYER_R + 0.05);
+    const hit = t >= 0 && t < tStatic && p.alive;
+    if (hit) dealt += wd.dmg * 0.35 * (wd.pellets > 1 ? Math.max(0.35, 1 - t / range) : 1);
+    const tEnd = hit ? t : tStatic;
+    w.emit('tracer', mx, e.y + 1.15, mz, mx + dx * tEnd, mz + dz * tEnd, hit ? 4 : 3);
+  }
+  if (dealt > 0) {
+    damagePlayer(w, Math.min(30, dealt), e.x, e.z, 2);
+    w.flags.add('echoShot');
   }
 }
 

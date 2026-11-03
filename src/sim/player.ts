@@ -209,7 +209,10 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
     pk.t += dt;
     if (Math.hypot(p.x - pk.x, p.z - pk.z) > 1.25) continue;
     pk.active = false;
+    // сколько досталось — для карточки находки
+    let amount = 0;
     if (pk.kind === 0) {
+      amount = p.owned[p.weapon] ? WEAPONS[p.weapon]!.crate : 0;
       for (let i = 0; i < WEAPONS.length; i++) if (p.owned[i]) p.reserve[i]! += WEAPONS[i]!.crate;
     } else if (pk.kind === 1) {
       p.owned[pk.a] = true;
@@ -217,15 +220,19 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
       p.reserve[pk.a]! += WEAPONS[pk.a]!.crate;
       p.weapon = pk.a;
       p.reload = 0;
+      amount = WEAPONS[pk.a]!.crate;
     } else if (pk.kind === 2) {
       p.dynamite += 2;
+      amount = 2;
     } else if (pk.kind === 4) {
       p.battery = Math.min(1, p.battery + 0.5);
+      amount = 50;
     } else if (pk.kind === 3) {
+      amount = Math.round(Math.min(45, 100 - p.hp));
       p.hp = Math.min(100, p.hp + 45);
       p.sanity = Math.min(100, p.sanity + 10);
     }
-    w.emit('pickup', pk.x, p.y, pk.z, pk.kind, pk.a);
+    w.emit('pickup', pk.x, p.y, pk.z, pk.kind, pk.a, amount);
   }
 
   // --- рассудок ---

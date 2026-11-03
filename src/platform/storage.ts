@@ -79,6 +79,8 @@ export interface Progress {
   /** Полученные достижения и увиденные концовки. */
   ach: string[];
   endings: string[];
+  /** Какие находки уже видели (первая — стоп-кадр, дальше — маленькая карточка). */
+  items: string[];
 }
 
 const PKEY = 'dead-air:progress';
@@ -89,9 +91,9 @@ export function loadProgress(): Progress {
     const unlocked = typeof o.unlocked === 'number' && Number.isInteger(o.unlocked) ? Math.min(20, Math.max(1, o.unlocked)) : 1;
     const seen = Array.isArray(o.seen) ? o.seen.filter((v): v is number => Number.isInteger(v) && v >= 0 && v < 32) : [];
     const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && /^[a-z0-9_:]{1,32}$/.test(x)).slice(0, 64) : []);
-    return { unlocked, seen, ach: ids(o.ach), endings: ids(o.endings) };
+    return { unlocked, seen, ach: ids(o.ach), endings: ids(o.endings), items: ids(o.items) };
   } catch {
-    return { unlocked: 1, seen: [], ach: [], endings: [] };
+    return { unlocked: 1, seen: [], ach: [], endings: [], items: [] };
   }
 }
 
@@ -101,6 +103,7 @@ export function resetProgress(p: Progress): void {
   p.seen.length = 0;
   p.ach.length = 0;
   p.endings.length = 0;
+  p.items.length = 0;
   saveProgress(p);
 }
 

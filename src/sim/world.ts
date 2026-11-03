@@ -23,6 +23,13 @@ export interface WorldConfig {
 }
 
 export const TRAIL_SIZE = 4096;
+/**
+ * Прошлое игрока — по тику: x, z, прицел, оружие, флаги (1 — шёл, 2 — выстрелил).
+ * Отголосок проигрывает его с задержкой ECHO_DELAY — точь-в-точь, включая выстрелы.
+ */
+export const PAST_SIZE = 1024;
+export const PAST_STRIDE = 5;
+export const ECHO_DELAY = 300;
 export const MAX_ENEMIES = 64;
 const MAX_EVENTS = 512;
 
@@ -57,6 +64,8 @@ export class World {
   /** След игрока для Отголоска: x,z по очереди. trailCount — сколько всего отсчётов записано. */
   readonly trail = new Float32Array(TRAIL_SIZE * 2);
   trailCount = 0;
+  readonly past = new Float32Array(PAST_SIZE * PAST_STRIDE);
+  pastCount = 0;
 
   /** Шумы: x, z, громкость, время. Кольцо из 8. */
   readonly noises = new Float32Array(8 * 4);
@@ -115,7 +124,7 @@ export class World {
       owned: WEAPONS.map((w) => cfg.night.startWeapons.includes(w.id)),
       cooldown: 0, reload: 0, dynamite: 3, throwCd: 0, stillT: 0, moving: false, invuln: 0,
       stepAcc: 0, reel: 0, holdingReel: false, inLight: true, lastNoiseT: -99, canReel: false,
-      focus: -1, focusHold: 0, actionPrev: false, holding: false, voiceCd: 0, battery: 1,
+      focus: -1, focusHold: 0, actionPrev: false, holding: false, voiceCd: 0, battery: 1, fired: 0,
     };
     this.doorOpen = this.statics.doorOpen;
     water.level = cfg.night.water?.from ?? WORLD.waterLevel;
@@ -249,6 +258,26 @@ export class World {
     this.emit('dawn');
   }
 
+  /** Записывает текущий тик игрока в кольцевой буфер прошлого. */
+  private recordPast(): void {
+    const p = this.player;
+    const i = (this.pastCount % PAST_SIZE) * PAST_STRIDE;
+    const b = this.past;
+    b[i] = p.x;
+    b[i + 1] = p.z;
+    b[i + 2] = p.yaw;
+    b[i + 3] = p.fired > 0 ? p.fired - 1 : p.weapon;
+    b[i + 4] = (p.moving ? 1 : 0) | (p.fired > 0 ? 2 : 0);
+    p.fired = 0;
+    this.pastCount++;
+  }
+
+  /** Тик прошлого `back` тиков назад (или null, если столько ещё не записано). */
+  pastAt(back: number): number | null {
+    if (this.pastCount - 1 - back < 0 || back >= PAST_SIZE) return null;
+    return ((this.pastCount - 1 - back) % PAST_SIZE) * PAST_STRIDE;
+  }
+
   updatePlayerHouse(): void {
     const h = houseAt(this.layout.houses, this.player.x, this.player.z);
     if (h !== this.playerHouse) {
@@ -343,6 +372,7 @@ export class World {
     }
 
     updatePlayer(this, input, dt);
+    this.recordPast();
     this.drowning(dt);
     this.director.update(dt);
     updateEnemies(this, dt);

@@ -199,11 +199,11 @@ export class Screens {
   }
 
   /** Стоп-кадр: имя, описание и совет печатаются, как на машинке. */
-  showBeast(name: string, desc: string, tip: string, onClose: () => void): void {
+  showBeast(name: string, desc: string, tip: string, onClose: () => void, tag: StrKey = 'ui.new'): void {
     const el = this.beast;
     el.textContent = '';
     const card = h('div', 'beast-card', undefined, el);
-    h('div', 'beast-tag', t('ui.new'), card);
+    h('div', 'beast-tag', t(tag), card);
     const nm = h('div', 'beast-name', '', card);
     const ds = h('div', 'beast-desc', '', card);
     const tp = h('div', 'beast-tip', '', card);

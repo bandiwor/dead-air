@@ -27,6 +27,8 @@ import { BESTIARY } from '../content/bestiary';
 import { DevTools } from './devtools';
 import { AchievementTracker } from './achievements';
 import { AchToast } from '../ui/achToast';
+import { PickupCard } from '../ui/pickupCard';
+import { itemFor, itemShowcaseKind, type ItemDef } from '../content/items';
 import { Installer } from '../platform/install';
 import { InstallCard } from '../ui/installCard';
 
@@ -83,6 +85,7 @@ export class Game {
   private installAt = 0;
   readonly ach: AchievementTracker;
   private readonly achToast: AchToast;
+  private readonly pickupCard: PickupCard;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -152,6 +155,7 @@ export class Game {
     this.screens.setInstallMode(this.installer.mode);
     this.world = this.makeWorld();
     this.achToast = new AchToast(root);
+    this.pickupCard = new PickupCard(touch);
     this.ach = new AchievementTracker(this.progress, () => saveProgress(this.progress), (a) => {
       this.achToast.push(a);
       this.audio.play('pickup', { bus: 'ui', vol: 0.7, rate: a.rarity === 'legendary' ? 0.7 : 1, reverb: 0.3 });
@@ -453,7 +457,32 @@ export class Game {
   /** Стоп-кадр с карточкой существа (вызывается и из отладки). */
   showBeastCard(kind: number): void {
     const card = BESTIARY[kind as keyof typeof BESTIARY];
-    if (!card || this.mode !== 'play') return;
+    if (!card) return;
+    this.freezeCard(kind, t(card.name), t(card.desc), t(card.tip), 'ui.new');
+  }
+
+  /**
+   * Находка: первая каждого вида — стоп-кадр с моделью (как первая встреча с существом),
+   * повторные — маленькая карточка снизу с иконкой и количеством.
+   */
+  private onPickup(kind: number, a: number, amount: number): void {
+    const item = itemFor(kind, a);
+    if (!item) return;
+    if (!this.progress.items.includes(item.id) && this.mode === 'play') {
+      this.progress.items.push(item.id);
+      saveProgress(this.progress);
+      this.showItemCard(item);
+    } else {
+      this.pickupCard.show(item, amount);
+    }
+  }
+
+  showItemCard(item: ItemDef): void {
+    this.freezeCard(itemShowcaseKind(item), t(item.name), t(item.desc), t(item.tip), 'ui.found');
+  }
+
+  private freezeCard(kind: number, name: string, desc: string, tip: string, tag: StrKey): void {
+    if (this.mode !== 'play') return;
     this.mode = 'beast';
     this.input.enabled = false;
     this.input.reset();
@@ -462,7 +491,7 @@ export class Game {
     this.audio.duck(3);
     this.audio.play('tapestop', { bus: 'ui', vol: 0.9, reverb: 0.2 });
     this.audio.play('sting', { bus: 'ui', vol: 0.35, rate: 0.55, delay: 0.35, reverb: 0.4 });
-    this.screens.showBeast(t(card.name), t(card.desc), t(card.tip), () => {
+    this.screens.showBeast(name, desc, tip, () => {
       this.renderer?.stopShowcase();
       this.hud.root.classList.remove('beastmode');
       if (this.mode !== 'beast') return;
@@ -470,7 +499,7 @@ export class Game {
       this.input.enabled = true;
       this.input.reset();
       this.acc = 0;
-    });
+    }, tag);
   }
 
   /** Записка: игра стоит, пока её читают. */
@@ -602,6 +631,7 @@ export class Game {
         this.input.reset();
       },
       onNote: (key: string) => this.openNote(key),
+      onPickup: (kind: number, a: number, amount: number) => this.onPickup(kind, a, amount),
       onDawn: () => {
         this.mode = 'dawn';
         this.input.enabled = false;

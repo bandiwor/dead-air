@@ -462,6 +462,9 @@ interface HumanoidSpec {
   lantern?: boolean;
 }
 
+/** Где правая кисть взрослого (рост 1.8) держит рукоять оружия — в координатах модели. */
+export const HAND_R: [number, number, number] = [0.1, 1.2, 0.4];
+
 /** Брусок от точки a до точки b (рука, ствол): длинная ось бруска — вдоль отрезка. */
 function segment(b: Builder, a: [number, number, number], c: [number, number, number], w: number, d: number, o: Omit<PartOpts, 'pos' | 'rot'>): void {
   const dir = new THREE.Vector3(c[0] - a[0], c[1] - a[1], c[2] - a[2]);
@@ -512,9 +515,7 @@ export function humanoidGeometry(s: HumanoidSpec): THREE.BufferGeometry {
     segment(b, elbowL, handL, 0.11, 0.12, { color: s.coat });
     b.box(0.1, 0.1, 0.11, { pos: handR, color: s.skin });
     b.box(0.1, 0.1, 0.11, { pos: handL, color: s.skin });
-    // оружие: рукоять в правой кисти, ствол вперёд
-    b.box(0.06, 0.13, 0.07, { pos: [handR[0], handR[1] + 0.02, handR[2] + 0.02], rot: [0.25, 0, 0], color: 0x2a2622 });
-    b.box(0.07, 0.08, 0.38, { pos: [handR[0], handR[1] + 0.09, handR[2] + 0.17], color: 0x222220 });
+    // оружие — отдельная модель (своя у каждого ствола), вставляется в правую кисть: HAND_R
     // фонарь: корпус в левой кисти, под стволом; светлое стекло спереди
     b.box(0.07, 0.07, 0.24, { pos: [handL[0] + 0.03, handL[1] + 0.02, handL[2] + 0.12], color: 0x40403c });
     b.box(0.09, 0.09, 0.03, { pos: [handL[0] + 0.03, handL[1] + 0.02, handL[2] + 0.25], color: 0xfff0c8 });
@@ -705,5 +706,88 @@ export function boatGeometry(): THREE.BufferGeometry {
   b.box(0.9, 0.36, 0.08, { pos: [0, 0.3, 1.5], rot: [-0.5, 0, 0], color: wood });
   b.box(1.0, 0.06, 0.3, { pos: [0, 0.32, -0.2], color: 0x5a4a38 });
   b.box(0.05, 0.05, 2.1, { pos: [0.4, 0.42, 0.3], rot: [0.05, 0.3, 0], color: 0x6a5a44 });
+  return b.build();
+}
+
+// ------------------------------------------------------------------ оружие и находки
+
+const ALONG_Z: [number, number, number] = [Math.PI / 2, 0, 0];
+
+/**
+ * Оружие: рукоять в начале координат (там, где кисть), ствол — в +z.
+ * Одна и та же модель — в руках игрока и Отголоска, на земле и в карточке находки.
+ */
+export function weaponGeometry(id: string): THREE.BufferGeometry {
+  const b = new Builder(151);
+  const metal = 0x2a2a2c;
+  const dark = 0x1c1c1e;
+  const wood = 0x5a3a22;
+  if (id === 'shotgun') {
+    // обрез: два ствола, укороченное ложе с пистолетной рукоятью
+    b.box(0.05, 0.11, 0.07, { pos: [0, -0.04, -0.02], rot: [0.35, 0, 0], color: wood, jitter: 0.2 });
+    b.box(0.06, 0.07, 0.12, { pos: [0, 0.05, 0.05], color: metal });
+    for (const s of [-1, 1]) b.add(new THREE.CylinderGeometry(0.019, 0.019, 0.42, 6), { pos: [s * 0.019, 0.075, 0.32], rot: ALONG_Z, color: dark });
+    b.box(0.06, 0.04, 0.17, { pos: [0, 0.035, 0.22], color: wood, jitter: 0.2 });
+  } else if (id === 'rifle') {
+    // карабин: длинное деревянное ложе с прикладом, ствол, рукоять затвора
+    b.box(0.05, 0.075, 0.78, { pos: [0, 0.035, 0.08], color: wood, jitter: 0.15 });
+    b.box(0.05, 0.13, 0.2, { pos: [0, -0.01, -0.28], rot: [-0.12, 0, 0], color: wood, jitter: 0.15 });
+    b.add(new THREE.CylinderGeometry(0.014, 0.014, 0.42, 6), { pos: [0, 0.08, 0.62], rot: ALONG_Z, color: dark });
+    b.box(0.04, 0.05, 0.16, { pos: [0, 0.085, 0.06], color: metal });
+    b.box(0.06, 0.015, 0.015, { pos: [0.04, 0.09, 0.02], color: metal });
+    b.box(0.03, 0.03, 0.02, { pos: [0.075, 0.08, 0.02], color: metal });
+  } else if (id === 'smg') {
+    // «дедов автомат»: деревянный приклад, кожух ствола, круглый диск снизу
+    b.box(0.05, 0.09, 0.26, { pos: [0, 0.0, -0.13], rot: [-0.08, 0, 0], color: wood, jitter: 0.15 });
+    b.box(0.06, 0.07, 0.22, { pos: [0, 0.06, 0.1], color: metal });
+    b.box(0.052, 0.052, 0.22, { pos: [0, 0.07, 0.32], color: 0x343436 });
+    for (let i = 0; i < 4; i++) b.box(0.054, 0.012, 0.025, { pos: [0, 0.098, 0.25 + i * 0.045], color: dark });
+    b.add(new THREE.CylinderGeometry(0.075, 0.075, 0.05, 12), { pos: [0, -0.035, 0.1], rot: [0, 0, Math.PI / 2], color: metal });
+  } else if (id === 'flaregun') {
+    // ракетница: толстый короткий ствол, оранжевая пластмасса
+    const orange = 0xc25a1a;
+    b.box(0.05, 0.12, 0.06, { pos: [0, -0.04, 0], rot: [0.3, 0, 0], color: orange, jitter: 0.15 });
+    b.box(0.06, 0.07, 0.1, { pos: [0, 0.05, 0.04], color: orange });
+    b.add(new THREE.CylinderGeometry(0.036, 0.036, 0.2, 10), { pos: [0, 0.07, 0.18], rot: ALONG_Z, color: 0xb04a14 });
+    b.add(new THREE.CylinderGeometry(0.026, 0.026, 0.01, 10), { pos: [0, 0.07, 0.285], rot: ALONG_Z, color: 0x140a06 });
+  } else {
+    // револьвер: деревянные щёчки, рамка, барабан, ствол, курок
+    b.box(0.045, 0.12, 0.06, { pos: [0, -0.04, -0.01], rot: [0.3, 0, 0], color: 0x4a3020, jitter: 0.2 });
+    b.box(0.045, 0.07, 0.1, { pos: [0, 0.05, 0.04], color: metal });
+    b.add(new THREE.CylinderGeometry(0.035, 0.035, 0.07, 8), { pos: [0, 0.055, 0.08], rot: ALONG_Z, color: 0x3a3a3c });
+    b.add(new THREE.CylinderGeometry(0.014, 0.014, 0.2, 6), { pos: [0, 0.075, 0.21], rot: ALONG_Z, color: dark });
+    b.box(0.015, 0.04, 0.02, { pos: [0, 0.1, 0.0], rot: [-0.5, 0, 0], color: dark });
+  }
+  return b.build();
+}
+
+/** Находки (не оружие): цинк с патронами, аптечка, связка шашек, батарейки. Стоят на земле, центр в нуле. */
+export function itemGeometry(id: string): THREE.BufferGeometry {
+  const b = new Builder(161);
+  if (id === 'med') {
+    b.box(0.34, 0.14, 0.24, { pos: [0, 0.07, 0], color: 0xd8d4c8, jitter: 0.08 });
+    b.box(0.36, 0.02, 0.26, { pos: [0, 0.145, 0], color: 0xbab6aa });
+    b.box(0.14, 0.012, 0.045, { pos: [0, 0.157, 0], color: 0xa02020 });
+    b.box(0.045, 0.012, 0.14, { pos: [0, 0.158, 0], color: 0xa02020 });
+    b.box(0.08, 0.03, 0.02, { pos: [0, 0.16, -0.13], color: 0x4a4640 });
+  } else if (id === 'dynamite') {
+    for (let i = 0; i < 3; i++) b.add(new THREE.CylinderGeometry(0.045, 0.045, 0.3, 8), { pos: [(i - 1) * 0.09, 0.045 + (i === 1 ? 0.07 : 0), 0], rot: ALONG_Z, color: 0x9a3a2a, jitter: 0.15 });
+    b.box(0.3, 0.05, 0.04, { pos: [0, 0.07, 0.06], color: 0x2a2420 });
+    b.box(0.3, 0.05, 0.04, { pos: [0, 0.07, -0.06], color: 0x2a2420 });
+    b.box(0.012, 0.012, 0.14, { pos: [0, 0.16, 0.2], rot: [0.5, 0, 0], color: 0xc8c0a0 });
+  } else if (id === 'battery') {
+    for (const s of [-1, 1]) {
+      b.add(new THREE.CylinderGeometry(0.04, 0.04, 0.14, 10), { pos: [s * 0.05, 0.07, 0], color: 0x2a2a2c, jitter: 0.1 });
+      b.add(new THREE.CylinderGeometry(0.041, 0.041, 0.03, 10), { pos: [s * 0.05, 0.125, 0], color: 0xb87333 });
+      b.add(new THREE.CylinderGeometry(0.014, 0.014, 0.02, 6), { pos: [s * 0.05, 0.15, 0], color: 0x9a9a9a });
+    }
+  } else {
+    // цинк с патронами: зелёный ящик, крышка приоткрыта, сверху — россыпь латуни
+    b.box(0.34, 0.15, 0.22, { pos: [0, 0.075, 0], color: 0x3c4a32, jitter: 0.12 });
+    b.box(0.35, 0.02, 0.23, { pos: [0, 0.16, -0.03], rot: [-0.25, 0, 0], color: 0x34402c });
+    for (let i = 0; i < 5; i++) {
+      b.add(new THREE.CylinderGeometry(0.011, 0.011, 0.07, 6), { pos: [-0.12 + i * 0.06, 0.19, 0.05], rot: [Math.PI / 2, 0, 0.3 * i], color: 0xc8a050 });
+    }
+  }
   return b.build();
 }
