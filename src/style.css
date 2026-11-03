@@ -209,6 +209,10 @@ button {
 .btn-throw { right: calc(96px + var(--safe-r)); bottom: calc(176px + var(--safe-b)); }
 .btn-reload { right: calc(174px + var(--safe-r)); bottom: calc(176px + var(--safe-b)); }
 .btn-swap { right: calc(18px + var(--safe-r)); bottom: calc(206px + var(--safe-b)); }
+.buttons .btn-voice { display: none; right: calc(96px + var(--safe-r)); bottom: calc(240px + var(--safe-b)); border-color: var(--phos); color: var(--phos); }
+.buttons.voiced .btn-voice { display: block; }
+.buttons.unarmed .btn-swap, .buttons.unarmed .btn-throw, .buttons.unarmed .btn-reload { display: none; }
+.hud-letters { margin-top: 6px; color: var(--phos); letter-spacing: 0.28em; font-size: 13px; opacity: 0.85; }
 
 /* ---------- экраны ---------- */
 .screens { position: absolute; inset: 0; pointer-events: none; }
@@ -422,3 +426,37 @@ button {
 .dbg-item:active { background: rgba(255, 200, 140, 0.2); }
 .dbg-flags { font: 10px/1.4 var(--font); color: var(--dim); white-space: pre-wrap; margin-top: 10px; }
 .hud.dbg-hide > *:not(.btn-pause) { display: none !important; }
+
+/* достижения: цвет = редкость */
+.r-common { --rc: #8a958f; }
+.r-uncommon { --rc: var(--phos); }
+.r-rare { --rc: var(--sodium); }
+.r-legendary { --rc: #f1e6c4; }
+.ach-list { min-width: min(560px, 90vw); gap: 6px; }
+.ach-row { display: grid; grid-template-columns: 46px 1fr auto; gap: 12px; align-items: center; padding: 8px 4px; border-bottom: 1px solid rgba(127, 214, 194, 0.1); }
+.ach-icon { width: 42px; height: 42px; display: grid; place-content: center; border: 1px solid var(--rc); color: var(--rc); }
+.r-legendary .ach-icon { box-shadow: 0 0 10px rgba(241, 230, 196, 0.35), inset 0 0 8px rgba(241, 230, 196, 0.15); }
+.ach-name { color: var(--rc); font-size: 13px; letter-spacing: 0.08em; }
+.ach-desc { color: var(--dim); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+.ach-rarity { color: var(--rc); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.8; }
+.ach-row.locked .ach-icon, .ach-row.locked .ach-name, .ach-row.locked .ach-rarity { color: #3c4542; border-color: #2a3230; box-shadow: none; }
+.ach-row.locked .ach-desc { color: #4a5450; }
+.ach-toast {
+  position: absolute;
+  left: 50%;
+  top: calc(44px + var(--safe-t));
+  transform: translate(-50%, -12px);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 14px 8px 8px;
+  background: rgba(5, 8, 11, 0.9);
+  border: 1px solid var(--rc, #8a958f);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s, transform 0.35s;
+  z-index: 8;
+}
+.ach-toast.on { opacity: 1; transform: translate(-50%, 0); }
+.ach-toast .ach-icon { width: 36px; height: 36px; }
+.ach-tag { color: var(--dim); font-size: 9.5px; letter-spacing: 0.24em; text-transform: uppercase; }

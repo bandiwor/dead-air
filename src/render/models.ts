@@ -577,3 +577,81 @@ export function faceGeometry(): { head: THREE.BufferGeometry; jaw: THREE.BufferG
   for (let i = 0; i < 6; i++) jaw.box(0.02, 0.05, 0.02, { pos: [-0.06 + i * 0.025, 0.02, 0.21], color: 0xa89f88 });
   return { head: b.build(), jaw: jaw.build() };
 }
+
+/**
+ * Хор: одиннадцать тел, вросших друг в друга спинами, — кольцо лиц наружу, рты открыты.
+ * Ноги общие, короткие; тело качается в такт вальса (анимация конечностей).
+ */
+export function choirGeometry(): THREE.BufferGeometry {
+  const b = new Builder(97);
+  const rng = new Rng(97);
+  const skin = 0x6f6a62;
+  const cloth = 0x2e2a26;
+  b.box(1.5, 1.2, 1.5, { pos: [0, 0.75, 0], color: 0x3a342e, jitter: 0.25 });
+  for (let i = 0; i < 11; i++) {
+    const a = (i / 11) * Math.PI * 2 + rng.range(-0.15, 0.15);
+    const r = 0.62 + rng.range(-0.08, 0.1);
+    const x = Math.sin(a) * r;
+    const z = Math.cos(a) * r;
+    const hgt = 1.9 + rng.range(-0.25, 0.3);
+    const tilt = rng.range(0.1, 0.35);
+    // туловище наклонено наружу
+    b.box(0.42, 0.9, 0.26, { pos: [x * 1.1, hgt - 0.55, z * 1.1], rot: [Math.cos(a) * tilt, a, -Math.sin(a) * tilt], color: cloth, jitter: 0.2 });
+    // голова и чёрный провал рта
+    const hx = Math.sin(a) * (r + 0.3);
+    const hz = Math.cos(a) * (r + 0.3);
+    b.box(0.24, 0.3, 0.24, { pos: [hx, hgt, hz], rot: [rng.range(-0.4, 0.2), a, rng.range(-0.3, 0.3)], color: skin, jitter: 0.15 });
+    b.box(0.1, 0.13, 0.05, { pos: [Math.sin(a) * (r + 0.43), hgt - 0.06, Math.cos(a) * (r + 0.43)], rot: [0, a, 0], color: 0x0a0606 });
+    // руки висят и качаются
+    const side = i % 2 === 0 ? 1 : -1;
+    b.box(0.09, 0.8, 0.1, {
+      pos: [Math.sin(a) * (r + 0.2) + Math.cos(a) * 0.2 * side, hgt - 0.85, Math.cos(a) * (r + 0.2) - Math.sin(a) * 0.2 * side],
+      color: skin,
+      limb: [Math.sin(a) * r, hgt - 0.45, Math.cos(a) * r, a],
+      limbW: 0.5,
+    });
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    b.box(0.2, 0.7, 0.2, { pos: [Math.sin(a) * 0.55, 0.35, Math.cos(a) * 0.55], color: cloth, limb: [Math.sin(a) * 0.55, 0.7, Math.cos(a) * 0.55, i % 2 ? 0 : Math.PI], limbW: 1 });
+  }
+  return b.build();
+}
+
+/** Развалины двенадцатого двора на дне пруда: нижние венцы, печь, притолока. */
+export function ruinGeometry(): THREE.BufferGeometry {
+  const b = new Builder(121);
+  const wood = 0x2a2620;
+  const W = 5.6;
+  const D = 4.6;
+  for (let k = 0; k < 3; k++) {
+    const y = 0.15 + k * 0.28;
+    const cut = k === 2 ? 0.55 : 1;
+    b.box(W * cut, 0.26, 0.26, { pos: [-(W * (1 - cut)) / 2, y, D / 2], color: wood, jitter: 0.3 });
+    b.box(W * (k === 1 ? 0.7 : 1), 0.26, 0.26, { pos: [0, y, -D / 2], color: wood, jitter: 0.3 });
+    b.box(0.26, 0.26, D * (k === 2 ? 0.4 : 1), { pos: [-W / 2, y, k === 2 ? -D * 0.3 : 0], color: wood, jitter: 0.3 });
+    if (k < 2) b.box(0.26, 0.26, D, { pos: [W / 2, y, 0], color: wood, jitter: 0.3 });
+  }
+  // печь — уцелела
+  b.box(1.1, 1.6, 1.1, { pos: [1.4, 0.8, -1.2], color: 0x5c5650, jitter: 0.2 });
+  b.box(0.45, 0.9, 0.45, { pos: [1.5, 2.0, -1.3], color: 0x4c4640 });
+  // притолока с вырезанной буквой — косо стоящая рама двери
+  b.box(0.16, 1.9, 0.16, { pos: [-0.6, 0.95, D / 2 + 0.05], rot: [0, 0, 0.12], color: wood });
+  b.box(0.16, 1.7, 0.16, { pos: [0.5, 0.85, D / 2 + 0.05], rot: [0, 0, 0.05], color: wood });
+  b.box(1.3, 0.2, 0.2, { pos: [0, 1.88, D / 2 + 0.05], rot: [0, 0, 0.09], color: 0x3a342c });
+  return b.build();
+}
+
+/** Заслонка на запруде: два бетонных быка, ржавый щит, ворот с колесом. */
+export function sluiceGeometry(): THREE.BufferGeometry {
+  const b = new Builder(131);
+  const conc = 0x5a5a56;
+  const rust = 0x5a3a26;
+  for (const side of [-1, 1]) b.box(0.9, 3.4, 1.4, { pos: [side * 2.1, 1.2, 0], color: conc, jitter: 0.2 });
+  b.box(3.4, 2.6, 0.18, { pos: [0, 0.9, 0], color: rust, jitter: 0.35 });
+  for (let i = 0; i < 4; i++) b.box(3.4, 0.08, 0.24, { pos: [0, 0.1 + i * 0.7, 0], color: 0x3a2618 });
+  b.box(5.2, 0.25, 0.6, { pos: [0, 3.0, 0], color: conc });
+  b.box(0.12, 1.2, 0.12, { pos: [0, 3.7, 0], color: 0x2a2a28 });
+  b.add(new THREE.TorusGeometry(0.45, 0.05, 4, 12), { pos: [0, 4.3, 0.1], color: 0x4a2c1a });
+  return b.build();
+}

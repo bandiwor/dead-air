@@ -1,6 +1,6 @@
 import { WEAPONS } from '../content/weapons';
 import { Kind } from '../content/enemies';
-import { WORLD, groundAt, heightAt } from '../proc/terrain';
+import { groundAt, heightAt, water } from '../proc/terrain';
 import { rayCircle } from './collision';
 import type { World } from './world';
 import type { Enemy } from './types';
@@ -97,6 +97,13 @@ export function damageEnemy(w: World, e: Enemy, dmg: number, kx: number, kz: num
     return;
   }
   if (e.kind === Kind.Apparition) return;
+  if (e.kind === Kind.Choir) {
+    // пули и взрывы кормят Хор: он растёт и поёт громче
+    e.hp = Math.min(150, e.hp + dmg * 0.35);
+    e.flash = 1;
+    w.emit('feed', e.x, e.y + 1.5, e.z, e.hp);
+    return;
+  }
   const mass = e.kind === Kind.Mute ? 6 : e.kind === Kind.Unseeing ? 2 : 1;
   e.hp -= dmg;
   e.flash = 1;
@@ -108,6 +115,7 @@ export function damageEnemy(w: World, e: Enemy, dmg: number, kx: number, kz: num
 
 export function killEnemy(w: World, e: Enemy, explosive: boolean): void {
   e.active = false;
+  if (e.kind === Kind.Choir) w.flags.add('choirDown');
   // В тишине умирающий шептун договаривает то, что не сказал. Радио это заглушает.
   if (w.deadAir && e.kind === Kind.Whisperer && w.time - w.lastFragT > 3.5) {
     w.addFragment(e.x, e.y + 0.6, e.z);
@@ -173,6 +181,7 @@ export function explode(w: World, x: number, z: number, radius: number, dmg: num
   const y = groundAt(x, z);
   w.emit('explosion', x, y, z, radius);
   w.noise(x, z, 1.7);
+  w.player.lastNoiseT = w.time;
   w.intensity = Math.min(1, w.intensity + 0.25);
   for (const e of w.enemies) {
     if (!e.active || e.kind === Kind.Apparition) continue;
@@ -216,15 +225,15 @@ export function updateProjectiles(w: World, dt: number): void {
       }
     }
     const g = groundAt(pr.x, pr.z);
-    const water = heightAt(pr.x, pr.z) < WORLD.waterLevel && pr.y < WORLD.waterLevel;
-    if (pr.y <= g + 0.05 || water) {
+    const wet = heightAt(pr.x, pr.z) < water.level && pr.y < water.level;
+    if (pr.y <= g + 0.05 || wet) {
       if (pr.kind === 1) {
-        landFlare(w, pr.x, Math.max(g, water ? WORLD.waterLevel : g), pr.z);
+        landFlare(w, pr.x, Math.max(g, wet ? water.level : g), pr.z);
         pr.active = false;
         continue;
       }
-      if (water) {
-        w.emit('splash', pr.x, WORLD.waterLevel, pr.z);
+      if (wet) {
+        w.emit('splash', pr.x, water.level, pr.z);
         pr.active = false; // шашка тонет
         continue;
       }

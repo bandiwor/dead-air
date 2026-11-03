@@ -356,6 +356,28 @@ export const RECIPES: Record<ProcSoundId, Recipe> = {
       chain(noise(c, r, d), filter(c, 'bandpass', 2200, 0.8), st, o);
     },
   },
+  choir: {
+    dur: () => 3.4,
+    build: (c, o, r, d) => {
+      // одиннадцать голосов на одном аккорде вальса, чуть вразнобой; гласная «а» → «у»
+      const bus = gain(c, 0.0001);
+      const f1 = filter(c, 'bandpass', 760, 3);
+      const f2 = filter(c, 'bandpass', 1150, 4);
+      bus.connect(f1).connect(o);
+      bus.connect(f2).connect(gain(c, 0.6)).connect(o);
+      sweep(f1.frequency, 0, 760, 380, d);
+      sweep(f2.frequency, 0, 1150, 820, d);
+      const chord = [110, 138.6, 164.8, 220];
+      for (let i = 0; i < 11; i++) {
+        const base = chord[i % chord.length]! * (1 + r.range(-0.012, 0.012));
+        const v = osc(c, 'sawtooth', base, r.range(0, 0.25), d);
+        v.frequency.linearRampToValueAtTime(base * r.range(0.97, 0.995), d);
+        chain(v, gain(c, 0.06), bus);
+      }
+      chain(noise(c, r, d, 'pink'), filter(c, 'bandpass', 900, 1.2), gain(c, 0.05), bus);
+      ahr(bus.gain, 0, 1, 0.6, d - 1.6, 0.9);
+    },
+  },
   screech: {
     dur: () => 0.9,
     build: (c, o, r) => {

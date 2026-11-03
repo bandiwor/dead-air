@@ -13,7 +13,7 @@ interface Stick {
   knob: HTMLElement;
 }
 
-export type ButtonId = 'action' | 'swap' | 'throw' | 'reload' | 'pause';
+export type ButtonId = 'action' | 'swap' | 'throw' | 'reload' | 'voice' | 'pause';
 
 /**
  * Ввод: плавающие стики (появляются под пальцем), кнопки, клавиатура/мышь — всё сводится
@@ -28,7 +28,7 @@ export class Input {
   private readonly keys = new Set<string>();
   private mouse = { x: 0, y: 0, down: false, active: false };
   private held = { action: false };
-  private edges = { swap: false, throw: false, reload: false, action: false };
+  private edges = { swap: false, throw: false, reload: false, action: false, voice: false };
   /** Позиция игрока на экране (для прицела мышью). */
   playerScreen = { x: 0, y: 0 };
   autofire = true;
@@ -51,6 +51,7 @@ export class Input {
       if (e.code === 'KeyQ') this.edges.swap = true;
       if (e.code === 'KeyG') this.edges.throw = true;
       if (e.code === 'KeyR') this.edges.reload = true;
+      if (e.code === 'KeyF') this.edges.voice = true;
       if (e.code === 'KeyE' || e.code === 'Space') this.edges.action = true;
       if (e.code === 'Escape') this.onPause();
     });
@@ -177,7 +178,7 @@ export class Input {
     this.aimEl.classList.remove('on');
     this.held.action = false;
     this.mouse.down = false;
-    this.edges = { swap: false, throw: false, reload: false, action: false };
+    this.edges = { swap: false, throw: false, reload: false, action: false, voice: false };
   }
 
   /** Снимок ввода для одного тика; нажатия сбрасываются. */
@@ -233,10 +234,11 @@ export class Input {
     out.swap = this.edges.swap;
     out.throw = this.edges.throw;
     out.reload = this.edges.reload;
-    this.edges.swap = this.edges.throw = this.edges.reload = false;
+    out.voice = this.edges.voice;
+    this.edges.swap = this.edges.throw = this.edges.reload = this.edges.voice = false;
     if (!this.enabled) {
       out.mx = out.mz = 0;
-      out.fire = out.aiming = out.action = out.swap = out.throw = out.reload = false;
+      out.fire = out.aiming = out.action = out.swap = out.throw = out.reload = out.voice = false;
     }
     return out;
   }

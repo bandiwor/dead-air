@@ -1,6 +1,8 @@
 import { t, type StrKey } from '../i18n';
 import type { Settings } from '../platform/storage';
 import { h, show } from './dom';
+import { ACHIEVEMENTS, RARITY_ORDER } from '../content/achievements';
+import { iconSvg } from './icons';
 
 export interface ScreenHandlers {
   onTap: () => void;
@@ -17,7 +19,7 @@ export interface ScreenHandlers {
   onUpdateApply: () => void;
 }
 
-type ScreenId = 'boot' | 'disclaimer' | 'loading' | 'title' | 'settings' | 'pause' | 'dead' | 'dawn' | 'none';
+type ScreenId = 'boot' | 'disclaimer' | 'loading' | 'title' | 'settings' | 'pause' | 'dead' | 'dawn' | 'achievements' | 'none';
 
 /** Экраны-меню в стиле терминала: моно-шрифт, жёсткие рамки, никаких градиентов. */
 export class Screens {
@@ -62,7 +64,8 @@ export class Screens {
     h('div', 'sub', t('ui.subtitle'), boot);
     h('div', 'blink', t('ui.tap'), boot);
     h('div', 'small', t('ui.headphones'), boot);
-    boot.addEventListener('pointerdown', () => handlers.onTap());
+    // «отпускание» пальца — жест, на который браузер разрешает полноэкранный режим и звук
+    boot.addEventListener('click', () => handlers.onTap());
 
     const disc = this.screen('disclaimer');
     const box = h('div', 'panel', undefined, disc);
@@ -81,10 +84,12 @@ export class Screens {
     h('div', 'sub', t('ui.subtitle'), title);
     const menu = h('div', 'menu', undefined, title);
     this.nightMenu = h('div', 'menu nights', undefined, menu);
+    this.button(menu, 'ui.achievements', () => this.open('achievements'));
     this.button(menu, 'ui.settings', () => this.openSettings('title'));
     h('div', 'small foot', t('ui.credits'), title);
 
     this.screen('settings');
+    this.screen('achievements');
     this.buildSettings();
 
     const pause = this.screen('pause');
@@ -215,6 +220,28 @@ export class Screens {
       onClose();
     };
     el.addEventListener('pointerdown', close);
+  }
+
+  /** Список достижений: иконка и название окрашены по редкости, закрытые — тусклые. */
+  setAchievements(unlocked: readonly string[]): void {
+    const el = this.screens.get('achievements')!;
+    el.textContent = '';
+    const box = h('div', 'panel ach-list', undefined, el);
+    box.dataset.scroll = '1';
+    h('div', 'panel-title', t('ui.achievements'), box);
+    h('div', 'small', t('ach.count', { n: unlocked.length, total: ACHIEVEMENTS.length }), box);
+    const sorted = [...ACHIEVEMENTS].sort((a, b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity));
+    for (const a of sorted) {
+      const got = unlocked.includes(a.id);
+      const row = h('div', `ach-row r-${a.rarity}${got ? '' : ' locked'}`, undefined, box);
+      const ic = h('div', 'ach-icon', undefined, row);
+      ic.appendChild(iconSvg(a.icon));
+      const txt = h('div', 'ach-text', undefined, row);
+      h('div', 'ach-name', got || !a.secret ? t(a.name) : '???', txt);
+      h('div', 'ach-desc', got || !a.secret ? t(a.desc) : t('ach.secret'), txt);
+      h('div', 'ach-rarity', t(`rarity.${a.rarity}` as StrKey), row);
+    }
+    this.button(box, 'ui.back', () => this.open('title'));
   }
 
   showNote(text: string, onClose: () => void): void {

@@ -45,6 +45,31 @@ export interface NightDef {
   dawnTruth: StrKey;
   dawnTitle: StrKey;
   dawnSub: StrKey;
+
+  // ---- необязательное (третья ночь) ----
+  /** Не показывать в меню: часть другой ночи. */
+  hidden?: boolean;
+  /** После рассвета сразу начинается эта ночь (без экрана рассвета). */
+  next?: string;
+  /** Игрок — ребёнок: без оружия, с керосиновой лампой. */
+  child?: boolean;
+  /** Радио мертво: нет бобин и эфира. */
+  noRadio?: boolean;
+  /** Действие «Голос»: крик-сонар. */
+  voice?: boolean;
+  /** Фонарь садится; батарейки — находки. */
+  battery?: boolean;
+  /** Уровень воды по времени (паводок или осушенный пруд). */
+  water?: { from: number; to: number; t0: number; t1: number };
+  /** Где игрок начинает (по умолчанию — у площади). */
+  start?: [number, number];
+  /** Шашки в начале (по умолчанию 3). */
+  dynamite?: number;
+  /** Показать на карте: развалины двенадцатого двора в осушенном пруду, заслонку в Щели. */
+  ruin?: boolean;
+  sluice?: boolean;
+  /** Концовки: выбираются по флагу, у каждой свой рассвет. */
+  endings?: { flag: string; dawn: Shot[]; title: StrKey; sub: StrKey }[];
 }
 
 export type { Effect };

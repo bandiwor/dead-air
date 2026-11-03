@@ -1,7 +1,7 @@
 import { Rng } from '../core/rng';
 import { clamp } from '../core/math';
 import { buildLayout, type Layout } from '../proc/layout';
-import { WORLD } from '../proc/terrain';
+import { WORLD, water } from '../proc/terrain';
 import { WEAPONS } from '../content/weapons';
 import type { NightDef } from '../content/night';
 import { Kind } from '../content/enemies';
@@ -11,7 +11,7 @@ import { doorOf } from '../proc/layout';
 import { houseAt, toWorld } from './houses';
 import { updatePlayer } from './player';
 import { updateEnemies } from './enemies';
-import { updateBarrels, updateFlares, updateProjectiles } from './combat';
+import { damagePlayer, updateBarrels, updateFlares, updateProjectiles } from './combat';
 import { Director } from '../director/director';
 import { Narrative } from '../narrative/narrative';
 
@@ -70,6 +70,11 @@ export class World {
   private nextEnemyId = 1;
   /** Читы режима отладки. В обычной игре всегда выключены. */
   readonly cheats = { god: false, ammo: false, freeze: false };
+  /** Собранные буквы имени (третья ночь). */
+  letters = '';
+  /** Насколько громче играет радио (флешбэк: «сделали погромче»). */
+  radioGain = 1;
+  private drownT = 0;
 
   /** Двери домов и свет в окнах (меняются сценарием). */
   readonly doorOpen: boolean[];
@@ -81,7 +86,7 @@ export class World {
   readonly notesRead: string[] = [];
   /** Текущая задача и метка на экране. */
   objective = '';
-  marker: { house?: number; pier?: boolean } | null = null;
+  marker: { house?: number; pier?: boolean; at?: [number, number] } | null = null;
   private timers: { at: number; fn: () => void }[] = [];
 
   constructor(cfg: WorldConfig) {
@@ -110,9 +115,20 @@ export class World {
       owned: WEAPONS.map((w) => cfg.night.startWeapons.includes(w.id)),
       cooldown: 0, reload: 0, dynamite: 3, throwCd: 0, stillT: 0, moving: false, invuln: 0,
       stepAcc: 0, reel: 0, holdingReel: false, inLight: true, lastNoiseT: -99, canReel: false,
-      focus: -1, focusHold: 0, actionPrev: false, holding: false,
+      focus: -1, focusHold: 0, actionPrev: false, holding: false, voiceCd: 0, battery: 1,
     };
     this.doorOpen = this.statics.doorOpen;
+    water.level = cfg.night.water?.from ?? WORLD.waterLevel;
+    if (cfg.night.dynamite !== undefined) this.player.dynamite = cfg.night.dynamite;
+    if (cfg.night.start) {
+      this.player.x = cfg.night.start[0];
+      this.player.z = cfg.night.start[1];
+    }
+    if (cfg.night.noRadio) {
+      // радио мертво с самого начала: без события «мёртвый эфир» и без сюжетных реплик о нём
+      this.air = 0;
+      this.deadAir = true;
+    }
     this.houseLight = this.layout.houses.map((_, i) => cfg.night.lights[i] ?? false);
     this.buildInteractables();
     this.director = new Director(this);
@@ -152,10 +168,13 @@ export class World {
         [x, z] = toWorld(hut, -hut.w / 2 - 0.7, 0);
       } else if (a === 'hutDoorSide') {
         [x, z] = toWorld(hut, 1.3, hut.d / 2 + 0.6);
-      } else {
+      } else if ('house' in a) {
         const h = this.layout.houses[a.house];
         if (h) [x, z] = toWorld(h, a.x, a.z);
         house = a.house;
+      } else {
+        x = a.x;
+        z = a.z;
       }
       add({ id: ex.id, kind: 'custom', x, z, r: ex.r, house, enabled: ex.enabled, hold: ex.hold, prompt: ex.prompt, rule: ex.rule, once: ex.once, glint: !!ex.glint, effects: ex.effects });
     }
@@ -199,6 +218,35 @@ export class World {
     this.emit('scare', this.player.x, 1.5, this.player.z, 0, 0, 0, 'jumpscare');
     this.player.sanity = Math.max(0, this.player.sanity - 14);
     this.intensity = 1;
+  }
+
+  /** Паводок: если вода поднялась под ногами — тонешь. */
+  private drowning(dt: number): void {
+    const p = this.player;
+    if (!p.alive || !this.cfg.night.water) return;
+    const depth = water.level - p.y;
+    if (depth > 0.35) {
+      this.drownT += dt;
+      if (this.drownT > 0.8) {
+        this.drownT = 0;
+        this.emit('drown', p.x, water.level, p.z);
+        damagePlayer(this, 9 + depth * 6, p.x + 0.1, p.z, 0);
+      }
+      this.flags.add('drowning');
+    } else this.drownT = 0;
+  }
+
+  /** Сюжетная концовка: рассвет наступает сразу. */
+  endNight(): void {
+    if (this.state !== 'play') return;
+    this.state = 'dawn';
+    for (const e of this.enemies) {
+      if (e.active) {
+        this.emit('vanish', e.x, e.y, e.z, e.kind, 1);
+        e.active = false;
+      }
+    }
+    this.emit('dawn');
   }
 
   updatePlayerHouse(): void {
@@ -276,8 +324,15 @@ export class World {
       }
     }
 
+    // вода
+    const wv = this.cfg.night.water;
+    if (wv) {
+      const k = clamp((this.time - wv.t0) / Math.max(0.001, wv.t1 - wv.t0), 0, 1);
+      water.level = wv.from + (wv.to - wv.from) * k;
+    } else water.level = WORLD.waterLevel;
+
     // эфир
-    this.air -= dt / this.cfg.night.reelSeconds;
+    if (!this.cfg.night.noRadio) this.air -= dt / this.cfg.night.reelSeconds;
     if (this.air <= 0) {
       this.air = 0;
       if (!this.deadAir) {
@@ -288,6 +343,7 @@ export class World {
     }
 
     updatePlayer(this, input, dt);
+    this.drowning(dt);
     this.director.update(dt);
     updateEnemies(this, dt);
     updateProjectiles(this, dt);

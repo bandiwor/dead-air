@@ -225,7 +225,7 @@ export class DevTools {
             g.refreshNights();
           }),
           ...NIGHTS.map((n, i) =>
-            action(t('dbg.night', { name: t(n.titleKey) }), () => {
+            action(t('dbg.night', { name: t(n.titleKey) + (n.hidden ? ' · II' : '') }), () => {
               this.panel.setOpen(false);
               g.nightIdx = i;
               g.startNight();

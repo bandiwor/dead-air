@@ -100,7 +100,7 @@ describe('контент ночей', () => {
 
       it('особые действия в домах стоят внутри своего дома', () => {
         for (const x of night.extras) {
-          if (typeof x.at !== 'object') continue;
+          if (typeof x.at !== 'object' || !('house' in x.at)) continue;
           const h = layout.houses[x.at.house]!;
           const [wx, wz] = toWorld(h, x.at.x, x.at.z);
           expect(houseAt(layout.houses, wx, wz)).toBe(x.at.house);

@@ -13,6 +13,8 @@ export interface AmbienceState {
   sanity: number;
   hp: number;
   deadAir: boolean;
+  /** Множитель громкости радио (во флешбэке за дверями прибавляют звук). */
+  radioGain?: number;
   nearestEnemy: number;
   playing: boolean;
 }
@@ -245,7 +247,7 @@ export class Ambience {
     const dxp = WORLD.pole.x - s.px;
     const dzp = WORLD.pole.z - s.pz;
     const dist = Math.hypot(dxp, dzp);
-    const vol = this.radioOn && s.playing ? 0.55 / (1 + Math.pow(dist / 11, 1.3)) : 0;
+    const vol = this.radioOn && s.playing ? (0.55 * (s.radioGain ?? 1)) / (1 + Math.pow(dist / 11, 1.3)) : 0;
     this.radioOut.gain.setTargetAtTime(vol, t, 0.3);
     this.radioPan.pan.setTargetAtTime(clamp(dxp / Math.max(6, dist), -1, 1) * 0.8, t, 0.2);
     if (this.radioOn) this.scheduleRadio(ctx);

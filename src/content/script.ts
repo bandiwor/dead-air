@@ -6,7 +6,7 @@ import type { StrKey } from '../i18n';
  */
 
 export type SpawnAt = 'doorOut' | 'inside' | 'pierWater' | 'behind' | 'crevice' | 'forest';
-export type AppearAt = 'pier' | 'behind' | 'pole' | 'window' | 'water' | 'corner';
+export type AppearAt = 'pier' | 'behind' | 'pole' | 'window' | 'water' | 'corner' | 'choir';
 export type ScareId = 'jumpscare' | 'scratch' | 'duck' | 'knockBack' | 'turn' | 'names' | 'speaker' | 'wet';
 
 export type Effect =
@@ -23,8 +23,11 @@ export type Effect =
   | { enable: string }
   | { disable: string }
   | { unflag: string }
+  | { letter: string }
+  | { dawn: true }
+  | { radio: number }
   | { scare: ScareId; house?: number }
-  | { objective: StrKey | ''; marker?: { house?: number; pier?: boolean } | null }
+  | { objective: StrKey | ''; marker?: { house?: number; pier?: boolean; at?: [number, number] } | null }
   | { flag: string }
   | { sanity: number }
   | { fragment: true }
@@ -36,6 +39,10 @@ export interface Condition {
   flag?: string;
   notFlag?: string;
   sanityBelow?: number;
+  /** Все флаги из списка. */
+  flags?: string[];
+  /** Игрок ближе r к точке (x, z). */
+  near?: [number, number, number];
 }
 
 export interface Beat {
@@ -61,7 +68,7 @@ export interface HouseScript {
   knock: Effect[];
 }
 
-export type Anchor = 'pierEnd' | 'pierStart' | 'hutSide' | 'hutDoorSide' | { house: number; x: number; z: number };
+export type Anchor = 'pierEnd' | 'pierStart' | 'hutSide' | 'hutDoorSide' | { house: number; x: number; z: number } | { x: number; z: number };
 
 /** Особое действие ночи: рубильник, позвать с пристани, посмотреть в воду, взять лампу… */
 export interface ExtraDef {

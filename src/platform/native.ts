@@ -26,10 +26,18 @@ export const isStandalone = (): boolean =>
   matchMedia('(display-mode: standalone)').matches ||
   (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
+/** Игрок хоть раз вошёл в полноэкранный режим — значит, его нужно поддерживать. */
+let wantFullscreen = false;
+
+const fullscreenElement = (): Element | null =>
+  document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement ?? null;
+
 export async function enterImmersive(): Promise<void> {
   const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
   try {
-    if (!document.fullscreenElement && isTouch() && !isStandalone()) {
+    if (!fullscreenElement() && isTouch() && !isStandalone()) {
+      // намерение запоминаем сразу: если браузер отказал сейчас — повторим на следующем касании
+      wantFullscreen = true;
       if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
       else await el.webkitRequestFullscreen?.();
     }
@@ -54,6 +62,27 @@ async function keepAwake(): Promise<void> {
   } catch {
     /* нет разрешения — не критично */
   }
+}
+
+/**
+ * Мобильные браузеры выходят из полноэкранного режима при уходе с вкладки, а вернуть его
+ * можно только в ответ на жест. Поэтому: после возврата или выхода — повторный вход
+ * на первом же касании. Слушаем «отпускание» пальца: на тач-экранах именно pointerup/touchend
+ * дают браузеру право открыть полноэкранный режим (pointerdown — нет).
+ */
+export function installFullscreenKeeper(): void {
+  const restore = (): void => {
+    if (!wantFullscreen || fullscreenElement() || !isTouch() || isStandalone()) return;
+    void enterImmersive();
+  };
+  for (const ev of ['pointerup', 'touchend', 'click'] as const) document.addEventListener(ev, restore, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      // ориентацию и «не гаснуть» можно вернуть и без жеста — где браузер позволяет
+      wakeLock = null;
+      void keepAwake();
+    }
+  });
 }
 
 export function installGestureGuards(): void {

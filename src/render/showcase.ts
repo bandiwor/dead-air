@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Kind } from '../content/enemies';
 import type { TextureSet } from './textures';
-import { humanoidGeometry, muteGeometry, unseeingGeometry, whispererGeometry } from './models';
+import { choirGeometry, humanoidGeometry, muteGeometry, unseeingGeometry, whispererGeometry } from './models';
 
 /**
  * Витрина существа для стоп-кадра бестиария: отдельная маленькая сцена с театральным светом,
@@ -44,6 +44,7 @@ export class Showcase {
     if (kind === Kind.Whisperer) geo = whispererGeometry();
     else if (kind === Kind.Mute) geo = muteGeometry();
     else if (kind === Kind.Unseeing) geo = unseeingGeometry();
+    else if (kind === Kind.Choir) geo = choirGeometry();
     else {
       geo = humanoidGeometry({ height: 1.8, coat: 0x6a7672, skin: 0x8a9490, pants: 0x4a5450 });
       map = this.tex.cloth;

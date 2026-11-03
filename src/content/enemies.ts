@@ -13,6 +13,8 @@ export const Kind = {
   Apparition: 3,
   /** Невидевший — закрыл лицо руками. Замирает под взглядом. */
   Unseeing: 4,
+  /** Хор — одиннадцать, сросшиеся в одно тело. Растёт от шума, гибнет от тишины. */
+  Choir: 5,
 } as const;
 export type Kind = (typeof Kind)[keyof typeof Kind];
 
@@ -34,6 +36,7 @@ export const ENEMIES: Record<Kind, EnemyDef> = {
   [Kind.Mute]: { kind: Kind.Mute, id: 'mute', hp: 280, speed: 1.6, radius: 0.95, dmg: 18, atkCd: 1.4, lightFear: 0, mass: 6 },
   [Kind.Echo]: { kind: Kind.Echo, id: 'echo', hp: 120, speed: 0, radius: 0.4, dmg: 24, atkCd: 1, lightFear: 0, mass: 1 },
   [Kind.Apparition]: { kind: Kind.Apparition, id: 'apparition', hp: 1, speed: 0, radius: 0.4, dmg: 0, atkCd: 99, lightFear: 0, mass: 1 },
+  [Kind.Choir]: { kind: Kind.Choir, id: 'choir', hp: 100, speed: 0.55, radius: 1.7, dmg: 26, atkCd: 1.6, lightFear: 0, mass: 20 },
   [Kind.Unseeing]: { kind: Kind.Unseeing, id: 'unseeing', hp: 70, speed: 5.4, radius: 0.42, dmg: 20, atkCd: 1.2, lightFear: 1, mass: 2 },
 };
 

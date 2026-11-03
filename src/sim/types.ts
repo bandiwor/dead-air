@@ -17,17 +17,20 @@ export interface InputFrame {
   reload: boolean;
   /** Мягкая помощь прицеливания (тач). */
   assist: boolean;
+  /** Нажатие: крикнуть (третья ночь). */
+  voice: boolean;
 }
 
 export function emptyInput(): InputFrame {
-  return { mx: 0, mz: 0, ax: 0, az: 0, aiming: false, fire: false, action: false, swap: false, throw: false, reload: false, assist: false };
+  return { mx: 0, mz: 0, ax: 0, az: 0, aiming: false, fire: false, action: false, swap: false, throw: false, reload: false, assist: false, voice: false };
 }
 
 export type EvType =
   | 'shot' | 'tracer' | 'hit' | 'kill' | 'explosion' | 'step' | 'echoStep' | 'playerHurt' | 'playerDeath'
   | 'reload' | 'dryfire' | 'swap' | 'pickup' | 'throw' | 'flareLand' | 'deadAir' | 'airRestored'
   | 'reelProgress' | 'line' | 'scare' | 'waveStart' | 'waveEnd' | 'dawn' | 'alert' | 'growl' | 'charge'
-  | 'vanish' | 'bounce' | 'spawn' | 'splash' | 'note' | 'knock' | 'door' | 'houseLight' | 'fragment';
+  | 'vanish' | 'bounce' | 'spawn' | 'splash' | 'note' | 'knock' | 'door' | 'houseLight' | 'fragment'
+  | 'shout' | 'letter' | 'choirPulse' | 'feed' | 'drown';
 
 export interface SimEvent {
   type: EvType;
@@ -77,6 +80,8 @@ export class Enemy {
   /** Для Отголоска: отставание по следу (в отсчётах). */
   delay = 0;
   phase = 0;
+  /** Сколько ещё секунд существо «проявлено» криком. */
+  reveal = 0;
 }
 
 export class Projectile {
@@ -154,6 +159,9 @@ export interface Player {
   focusHold: number;
   actionPrev: boolean;
   holding: boolean;
+  /** Перезарядка крика и заряд фонаря (0..1). */
+  voiceCd: number;
+  battery: number;
 }
 
 export type InteractKind = 'knock' | 'note' | 'custom';

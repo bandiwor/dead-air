@@ -121,6 +121,8 @@ export class Director {
     if (a) this.dropPickup(0, 0, a.s.x + 0.6, a.s.z);
     if (b) this.dropPickup(this.waveIndex % 2 === 0 ? 2 : 3, 0, b.s.x - 0.6, b.s.z);
     if (c && this.waveIndex >= 2) this.dropPickup(0, 0, c.s.x, c.s.z + 0.5);
+    // без радио главный ресурс — батарейки для фонаря
+    if (w.cfg.night.battery && c) this.dropPickup(4, 0, c.s.x - 0.5, c.s.z - 0.5);
     this.nextScareAt = Math.min(this.nextScareAt, w.time + 6);
   }
 

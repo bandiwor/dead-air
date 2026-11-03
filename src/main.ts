@@ -1,10 +1,11 @@
 import './style.css';
 import { Game } from './app/game';
-import { installGestureGuards, registerServiceWorker } from './platform/native';
+import { installFullscreenKeeper, installGestureGuards, registerServiceWorker } from './platform/native';
 import { setLocale } from './i18n';
 
 setLocale('ru');
 installGestureGuards();
+installFullscreenKeeper();
 registerServiceWorker();
 
 const root = document.getElementById('app');

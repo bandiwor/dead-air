@@ -43,6 +43,8 @@ export class Narrative {
     if (c.flag !== undefined && !w.flags.has(c.flag)) return false;
     if (c.notFlag !== undefined && w.flags.has(c.notFlag)) return false;
     if (c.sanityBelow !== undefined && w.player.sanity >= c.sanityBelow) return false;
+    if (c.flags && !c.flags.every((f) => w.flags.has(f))) return false;
+    if (c.near && Math.hypot(w.player.x - c.near[0], w.player.z - c.near[1]) > c.near[2]) return false;
     return true;
   }
 
@@ -68,6 +70,14 @@ export class Narrative {
     else if ('deadAir' in e) w.air = 0;
     else if ('flag' in e) w.flags.add(e.flag);
     else if ('unflag' in e) w.flags.delete(e.unflag);
+    else if ('letter' in e) {
+      if (!w.letters.includes(e.letter)) {
+        w.letters += e.letter;
+        w.flags.add(`letters:${w.letters.length}`);
+        w.emit('letter', p.x, p.y + 1, p.z, w.letters.length, 0, 0, e.letter);
+      }
+    } else if ('dawn' in e) w.endNight();
+    else if ('radio' in e) w.radioGain = e.radio;
     else if ('enable' in e || 'disable' in e) {
       const id = 'enable' in e ? e.enable : e.disable;
       const it = w.interactables.find((i) => i.id === id);
@@ -170,6 +180,11 @@ export class Narrative {
         e.tx = 9999;
         e.yaw = Math.atan2(bz - z, bx - x);
       }
+    } else if (at === 'choir') {
+      // Хор перед заслонкой, в верховье Щели
+      const c = WORLD.crevice;
+      const e = spawnEnemy(w, Kind.Choir, c.bx + (c.ax - c.bx) * 0.18, c.bz + (c.az - c.bz) * 0.18);
+      if (e) e.tx = 3;
     } else if (at === 'behind') {
       const a = p.yaw + Math.PI;
       const e = spawnEnemy(w, Kind.Apparition, p.x + Math.cos(a) * 1.3, p.z + Math.sin(a) * 1.3);

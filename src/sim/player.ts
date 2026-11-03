@@ -1,5 +1,5 @@
 import { clamp, damp, dampAngle, wrapAngle } from '../core/math';
-import { WORLD, groundAt, isWater, surfaceAt } from '../proc/terrain';
+import { groundAt, isWater, surfaceAt, water } from '../proc/terrain';
 import { WEAPONS } from '../content/weapons';
 import { Kind } from '../content/enemies';
 import { TRAIL_SIZE, type World } from './world';
@@ -24,7 +24,7 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   const nearHut = Math.hypot(p.x - door.x, p.z - door.z) < 2.1;
   if (nearHut && !w.flags.has('hutVisited')) w.flags.add('hutVisited');
   // без лампы (вторая ночь) бобину не запустить
-  p.canReel = nearHut && w.air < 0.985 && !w.flags.has('reelLocked');
+  p.canReel = nearHut && w.air < 0.985 && !w.flags.has('reelLocked') && !w.cfg.night.noRadio;
   p.holdingReel = p.canReel && inp.action;
   if (p.holdingReel) {
     p.reel += dt / 2.4;
@@ -63,7 +63,9 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   const oz = p.z;
   let nx = ox + (p.vx + p.kx) * dt;
   let nz = oz + (p.vz + p.kz) * dt;
-  if (isWater(nx, nz)) {
+  // в воду не заходят; но если вода поднялась под ногами — выбраться можно куда угодно
+  const inWater = isWater(ox, oz);
+  if (isWater(nx, nz) && !inWater) {
     if (!isWater(nx, oz)) nz = oz;
     else if (!isWater(ox, nz)) nx = ox;
     else {
@@ -83,7 +85,7 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
       pos.z = b.z + (dz / d) * (PLAYER_R + 0.45);
     }
   }
-  if (isWater(pos.x, pos.z)) {
+  if (isWater(pos.x, pos.z) && !inWater) {
     pos.x = ox;
     pos.z = oz;
   }
@@ -154,7 +156,8 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
     }
   };
   if (inp.reload) startReload();
-  if (inp.fire && !p.holdingReel && !p.holding && p.cooldown <= 0 && p.reload <= 0) {
+  // ребёнок во флешбэке безоружен
+  if (inp.fire && p.owned[p.weapon] && !p.holdingReel && !p.holding && p.cooldown <= 0 && p.reload <= 0) {
     if (p.mag[p.weapon]! > 0) {
       fireWeapon(w);
     } else if (p.reserve[p.weapon]! > 0) {
@@ -165,6 +168,13 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
     }
   }
   if (inp.throw && p.dynamite > 0 && p.throwCd <= 0) throwDynamite(w);
+
+  // --- голос: крик-сонар (третья ночь) ---
+  p.voiceCd = Math.max(0, p.voiceCd - dt);
+  if (inp.voice && w.cfg.night.voice && p.voiceCd <= 0) shout(w);
+
+  // --- фонарь садится ---
+  if (w.cfg.night.battery) p.battery = Math.max(0, p.battery - dt / 210);
 
   // --- находки ---
   for (const pk of w.pickups) {
@@ -182,6 +192,8 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
       p.reload = 0;
     } else if (pk.kind === 2) {
       p.dynamite += 2;
+    } else if (pk.kind === 4) {
+      p.battery = Math.min(1, p.battery + 0.5);
     } else if (pk.kind === 3) {
       p.hp = Math.min(100, p.hp + 45);
       p.sanity = Math.min(100, p.sanity + 10);
@@ -224,13 +236,35 @@ function updateSanity(w: World, dt: number): void {
   p.inLight = inLight;
 
   let ds = inLight ? 1.3 : -0.32;
-  if (w.deadAir) ds -= 1.1;
+  if (w.deadAir && !w.cfg.night.noRadio) ds -= 1.1;
   let seen = 0;
   for (const e of w.enemies) if (e.active && e.litTorch && !e.fake) seen++;
   ds -= 0.12 * Math.min(3, seen);
   // Восстановление в свете ограничено: тот, кто долго смотрел в темноту, полностью не отойдёт.
   const cap = 100 - Math.min(30, w.time / 18);
   p.sanity = clamp(p.sanity + ds * dt, 0, Math.max(p.sanity, cap));
-  if (p.y < WORLD.waterLevel) p.sanity = Math.max(0, p.sanity - dt * 2);
+  if (p.y < water.level) p.sanity = Math.max(0, p.sanity - dt * 2);
 }
 
+
+/**
+ * Крик. Немой герой впервые подаёт голос: звук расходится кольцом и на секунды
+ * «проявляет» всё вокруг; шептуны отшатываются. Но крик слышат все — и Хор им кормится.
+ */
+export function shout(w: World): void {
+  const p = w.player;
+  p.voiceCd = 4;
+  p.lastNoiseT = w.time;
+  w.noise(p.x, p.z, 1.1);
+  w.emit('shout', p.x, p.y + 1.5, p.z);
+  for (const e of w.enemies) {
+    if (!e.active) continue;
+    const d = Math.hypot(e.x - p.x, e.z - p.z);
+    if (d > 24) continue;
+    e.reveal = 2.6;
+    if (e.kind === Kind.Whisperer && d < 7) {
+      e.litTime = 2;
+      e.atkCd = Math.max(e.atkCd, 1.4);
+    }
+  }
+}

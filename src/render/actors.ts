@@ -4,7 +4,7 @@ import type { World } from '../sim/world';
 import { WORLD, heightAt } from '../proc/terrain';
 import type { TextureSet } from './textures';
 import { creature } from './materials';
-import { crateGeometry, dynamiteGeometry, faceGeometry, humanoidGeometry, muteGeometry, unseeingGeometry, whispererGeometry } from './models';
+import { choirGeometry, crateGeometry, dynamiteGeometry, faceGeometry, humanoidGeometry, muteGeometry, unseeingGeometry, whispererGeometry } from './models';
 
 interface Herd {
   mesh: THREE.InstancedMesh;
@@ -41,6 +41,8 @@ const UP = new THREE.Vector3(0, 1, 0);
 export class ActorsView {
   readonly root = new THREE.Group();
   private readonly player: Herd;
+  /** Младший Ивашов во флешбэке: ниже ростом, без оружия, с лампой. */
+  private readonly child: Herd;
   private readonly herds: Record<number, Herd>;
   private readonly crates: THREE.InstancedMesh;
   private readonly longCrates: THREE.InstancedMesh;
@@ -57,6 +59,7 @@ export class ActorsView {
     const coat = new THREE.MeshLambertMaterial({ map: tex.cloth, vertexColors: true });
     coat.color.setScalar(1.8);
     this.player = herd(humanoidGeometry({ height: 1.8, coat: 0x3a3a34, skin: 0x9a8270, pants: 0x262624, flashlight: true }), coat, 1);
+    this.child = herd(humanoidGeometry({ height: 1.25, coat: 0x4a3e30, skin: 0xa88a74, pants: 0x2a2620, thin: 0.85 }), coat, 1);
     const skin = (k: number): THREE.MeshLambertMaterial => {
       const m = new THREE.MeshLambertMaterial({ map: tex.skin, vertexColors: true });
       m.color.setScalar(k);
@@ -75,8 +78,9 @@ export class ActorsView {
         false,
       ),
       [Kind.Unseeing]: herd(unseeingGeometry(), skin(1.5), 24),
+      [Kind.Choir]: herd(choirGeometry(), skin(1.4), 1),
     };
-    this.root.add(this.player.mesh);
+    this.root.add(this.player.mesh, this.child.mesh);
     for (const h of Object.values(this.herds)) this.root.add(h.mesh);
 
     const crateMat = new THREE.MeshLambertMaterial({ map: tex.planks, vertexColors: true, emissive: 0x2a1a06 });
@@ -115,19 +119,24 @@ export class ActorsView {
     // игрок
     const speed = Math.hypot(p.vx, p.vz);
     this.playerPhase += speed * dt * 2.3;
-    this.writeInstance(this.player, 0, p.x, p.y, p.z, p.yaw, this.playerPhase, Math.min(1, speed / 4.7) * 0.75, p.invuln > 0.25 ? 0.6 : 0, 1, 0, 0, 0);
-    this.player.mesh.count = p.alive ? 1 : 0;
-    this.player.mesh.visible = true;
-    commit(this.player);
+    const isChild = !!w.cfg.night.child;
+    const ph = isChild ? this.child : this.player;
+    const other = isChild ? this.player : this.child;
+    this.writeInstance(ph, 0, p.x, p.y, p.z, p.yaw, this.playerPhase * (isChild ? 1.4 : 1), Math.min(1, speed / 4.7) * 0.75, p.invuln > 0.25 ? 0.6 : 0, 1, 0, 0, 0);
+    ph.mesh.count = p.alive ? 1 : 0;
+    ph.mesh.visible = true;
+    other.mesh.count = 0;
+    commit(ph);
 
     // существа
-    const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+    const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     for (const e of w.enemies) {
       if (!e.active) {
         this.phases.delete(e.id);
         continue;
       }
-      const h = this.herds[e.kind]!;
+      const h = this.herds[e.kind];
+      if (!h) continue;
       const i = counts[e.kind]!;
       if (i >= h.mesh.instanceMatrix.count) continue;
       counts[e.kind] = i + 1;
@@ -166,11 +175,25 @@ export class ActorsView {
         // фигура на пристани должна читаться силуэтом — «кайма» ярче
         rim = e.state === 1 || e.state === 3 ? 0.8 : e.state === 2 ? 0.5 : 0.25;
         glitch = e.litTorch ? 0.6 : 0.02;
+      } else if (e.kind === Kind.Choir) {
+        // качается в три четверти, дрожит, когда его кормят
+        stride = 1;
+        amp = 0.5;
+        ph = this.time * 2.2;
+        rim = Math.max(rim, 0.45);
+        glitch = 0.03 + e.flash * 0.4;
+      }
+      // крик проявляет темноту: всё, что рядом, на миг очерчено
+      if (e.reveal > 0) {
+        const k = Math.min(1, e.reveal);
+        fade = Math.max(fade, k);
+        rim = Math.max(rim, k);
       }
       ph += sp * dt * stride;
       this.phases.set(e.id, ph);
       const y = e.y + (e.kind === Kind.Whisperer && e.y < WORLD.waterLevel ? 0 : 0);
-      this.writeInstance(h, i, e.x, y, e.z, e.yaw, ph, amp, e.flash, fade, glitch, rim, lean);
+      const scale = e.kind === Kind.Choir ? 0.75 + (e.hp / Math.max(1, e.maxHp)) * 0.45 : 1;
+      this.writeInstance(h, i, e.x, y, e.z, e.yaw, ph, amp, e.flash, fade, glitch, rim, lean, scale);
     }
     for (const [k, h] of Object.entries(this.herds)) {
       h.mesh.count = counts[Number(k)]!;
@@ -226,10 +249,10 @@ export class ActorsView {
     barrels.instanceMatrix.needsUpdate = true;
   }
 
-  private writeInstance(h: Herd, i: number, x: number, y: number, z: number, yaw: number, phase: number, amp: number, flash: number, fade: number, glitch: number, rim: number, lean: number): void {
+  private writeInstance(h: Herd, i: number, x: number, y: number, z: number, yaw: number, phase: number, amp: number, flash: number, fade: number, glitch: number, rim: number, lean: number, scale = 1): void {
     // модель смотрит в +z; направление (cos yaw, sin yaw) → поворот вокруг Y
     q.setFromAxisAngle(UP, Math.atan2(Math.cos(yaw), Math.sin(yaw)));
-    m4.compose(v.set(x, y, z), q, sc.set(1, 1, 1));
+    m4.compose(v.set(x, y, z), q, sc.set(scale, scale, scale));
     h.mesh.setMatrixAt(i, m4);
     h.anim.setXYZW(i, phase, 0, amp, flash);
     h.fx.setXYZW(i, fade, glitch, rim, lean);

@@ -26,6 +26,12 @@ export const WORLD = {
   pole: { x: 0, z: 0 },
 } as const;
 
+/**
+ * Текущий уровень воды. Обычно — WORLD.waterLevel; в третьей ночи меняется со временем
+ * (паводок в «Весне», осушенный пруд в «Щели»). Задаётся миром на каждом шаге.
+ */
+export const water = { level: WORLD.waterLevel as number };
+
 export function onPier(x: number, z: number): boolean {
   const p = WORLD.pier;
   return x >= p.x0 && x <= p.x1 && z >= p.z0 && z <= p.z1;
@@ -58,7 +64,7 @@ function rawHeight(x: number, z: number): number {
 }
 
 export function isWater(x: number, z: number): boolean {
-  return heightAt(x, z) < WORLD.waterLevel + 0.12 && !onPier(x, z);
+  return heightAt(x, z) < water.level + 0.12 && !onPier(x, z);
 }
 
 /** Высота, по которой ходит игрок/враги (пристань — над водой). */
@@ -70,7 +76,7 @@ export function groundAt(x: number, z: number): number {
 export function surfaceAt(x: number, z: number): number {
   if (onPier(x, z)) return 1;
   const h = heightAt(x, z);
-  if (h < WORLD.waterLevel + 0.6) return 3;
+  if (h < water.level + 0.6) return 3;
   if (Math.hypot(x, z) < 11) return 2;
   return 0;
 }

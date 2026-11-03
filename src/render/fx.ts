@@ -310,7 +310,7 @@ export class Fx {
   readonly tracers = new Tracers();
   readonly debris = new Debris();
   readonly decals = new Decals();
-  private readonly rings: { mesh: THREE.Mesh; life: number; max: number; r: number }[] = [];
+  private readonly rings: { mesh: THREE.Mesh; life: number; max: number; r: number; tint: [number, number, number] }[] = [];
   private readonly balls: { mesh: THREE.Mesh; life: number; max: number; r: number }[] = [];
   private readonly lights: PooledLight[] = [];
   readonly flareLights: THREE.PointLight[] = [];
@@ -331,7 +331,7 @@ export class Fx {
       );
       ring.visible = false;
       this.root.add(ring);
-      this.rings.push({ mesh: ring, life: 0, max: 0.4, r: 1 });
+      this.rings.push({ mesh: ring, life: 0, max: 0.4, r: 1, tint: [1, 0.7, 0.45] });
     }
     // огненные шары взрывов: раздуваются, остывают от жёлтого к тёмно-красному
     for (let i = 0; i < 3; i++) {
@@ -482,6 +482,17 @@ export class Fx {
     ring.mesh.position.set(x, y + 0.2, z);
     ring.life = ring.max = 0.45;
     ring.r = radius * 1.6;
+    ring.tint = [1, 0.7, 0.45];
+    ring.mesh.visible = true;
+  }
+
+  /** Расходящееся кольцо (крик): медленнее и шире взрывного. */
+  shockRing(x: number, y: number, z: number, radius: number): void {
+    const ring = this.rings.find((rr) => rr.life <= 0) ?? this.rings[0]!;
+    ring.mesh.position.set(x, y + 0.2, z);
+    ring.life = ring.max = 1.1;
+    ring.r = radius;
+    ring.tint = [0.05, 0.14, 0.12];
     ring.mesh.visible = true;
   }
 
@@ -531,7 +542,7 @@ export class Fx {
       const k = 1 - Math.max(0, rg.life / rg.max);
       const s = 0.3 + k * rg.r;
       rg.mesh.scale.set(s, 1, s);
-      (rg.mesh.material as THREE.MeshBasicMaterial).color.setRGB(1 - k, 0.7 * (1 - k), 0.45 * (1 - k));
+      (rg.mesh.material as THREE.MeshBasicMaterial).color.setRGB(rg.tint[0] * (1 - k), rg.tint[1] * (1 - k), rg.tint[2] * (1 - k));
       if (rg.life <= 0) rg.mesh.visible = false;
     }
   }

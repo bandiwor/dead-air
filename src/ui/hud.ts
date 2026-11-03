@@ -24,6 +24,8 @@ export class Hud {
   private readonly marker: HTMLElement;
   private readonly goalMarker: HTMLElement;
   private readonly objective: HTMLElement;
+  private readonly letters: HTMLElement;
+  private readonly br: HTMLElement;
   readonly buttons: HTMLElement;
   readonly pauseBtn: HTMLElement;
   private cache = new Map<HTMLElement, string>();
@@ -50,6 +52,7 @@ export class Hud {
     this.hpFill = h('div', 'bar-fill', undefined, hp);
 
     const br = h('div', 'hud-br', undefined, this.root);
+    this.br = br;
     this.weapon = h('div', 'hud-weapon', '', br);
     this.ammo = h('div', 'hud-ammo', '', br);
     this.dyn = h('div', 'hud-dyn', '', br);
@@ -63,9 +66,10 @@ export class Hud {
     this.marker = h('div', 'marker hidden', '▲', this.root);
     this.goalMarker = h('div', 'marker goal hidden', '▲', this.root);
     this.objective = h('div', 'hud-objective', '', this.root);
+    this.letters = h('div', 'hud-letters hidden', '', tl);
 
     this.buttons = h('div', 'buttons', undefined, this.root);
-    const mk = (id: 'action' | 'swap' | 'throw' | 'reload', key: Parameters<typeof t>[0]): void => {
+    const mk = (id: 'action' | 'swap' | 'throw' | 'reload' | 'voice', key: Parameters<typeof t>[0]): void => {
       const b = h('button', `btn btn-${id}`, t(key), this.buttons);
       input.bindButton(b, id);
     };
@@ -73,6 +77,7 @@ export class Hud {
     mk('reload', 'btn.reload');
     mk('throw', 'btn.throw');
     mk('action', 'btn.action');
+    mk('voice', 'btn.voice');
   }
 
   private set(el: HTMLElement, text: string): void {
@@ -126,11 +131,27 @@ export class Hud {
     const mm = Math.floor((hours - hh) * 60);
     this.set(this.clock, `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`);
     const d = w.director;
-    this.set(this.wave, d.waveActive ? t('hud.wave', { n: d.waveIndex + 1 }) : t('hud.lull'));
-    this.set(this.airLabel, w.deadAir ? t('hud.deadAir') : t('hud.air'));
-    this.air.classList.toggle('low', w.air < 0.25);
-    this.air.classList.toggle('dead', w.deadAir);
-    this.airFill.style.transform = `scaleX(${w.air.toFixed(3)})`;
+    this.set(this.wave, w.cfg.night.waves.length === 0 ? '' : d.waveActive ? t('hud.wave', { n: d.waveIndex + 1 }) : t('hud.lull'));
+    const night = w.cfg.night;
+    // без радио полоса эфира становится зарядом фонаря
+    const level = night.battery ? p.battery : w.air;
+    this.set(this.airLabel, night.battery ? t('hud.battery') : w.deadAir ? t('hud.deadAir') : t('hud.air'));
+    this.air.classList.toggle('low', level < 0.25);
+    this.air.classList.toggle('dead', !night.battery && w.deadAir);
+    show(this.air, !!night.battery || (!night.noRadio && !night.child));
+    this.airFill.style.transform = `scaleX(${level.toFixed(3)})`;
+    // ребёнок не носит оружия; крик — только там, где он есть
+    const armed = !night.child;
+    show(this.br, armed);
+    this.buttons.classList.toggle('unarmed', !armed);
+    this.buttons.classList.toggle('voiced', !!night.voice);
+    show(this.letters, !!night.voice);
+    if (night.voice) {
+      const name = 'ВАНЯ';
+      let s = `${t('hud.name')}: `;
+      for (const ch of name) s += w.letters.includes(ch) ? `${ch} ` : '_ ';
+      this.set(this.letters, s.trim());
+    }
     this.hpFill.style.transform = `scaleX(${(p.hp / 100).toFixed(3)})`;
     this.hpFill.parentElement!.classList.toggle('low', p.hp < 35);
 
@@ -161,7 +182,7 @@ export class Hud {
     this.set(this.objective, w.objective ? t(w.objective as Parameters<typeof t>[0]) : '');
 
     // метки: радиоузел (когда бобина садится) и сюжетная цель
-    this.placeMarker(this.marker, w.air < 0.35 && !p.canReel ? hutScreen : null);
+    this.placeMarker(this.marker, !night.noRadio && w.air < 0.35 && !p.canReel ? hutScreen : null);
     this.placeMarker(this.goalMarker, goalScreen);
 
     // субтитры

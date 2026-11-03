@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { clamp, damp } from '../core/math';
 import type { World } from '../sim/world';
-import { WORLD, groundAt } from '../proc/terrain';
+import { WORLD, groundAt, heightAt, water } from '../proc/terrain';
+import { torchFactor } from '../sim/enemies';
+import { SLUICE, YARD12 } from '../content/night3';
+import { houseGeometry, ruinGeometry, sluiceGeometry } from './models';
 import type { TextureSet } from './textures';
 import { buildWorldView, COLORS, type WorldView } from './worldView';
 import { ActorsView } from './actors';
@@ -129,6 +132,33 @@ export class GameRenderer {
         this.windowGlows.push({ x: h.x + lx * Math.cos(h.rot) + lz * Math.sin(h.rot), y, z: h.z - lx * Math.sin(h.rot) + lz * Math.cos(h.rot), house: i });
       }
     });
+    // декорации третьей ночи: целый двенадцатый двор (флешбэк), его развалины, заслонка
+    const setMat = new THREE.MeshLambertMaterial({ map: tex.planks, vertexColors: true });
+    setMat.color.setScalar(1.5);
+    const hp = houseGeometry(5.6, 4.6, 2.8, 112, false, false);
+    this.yard12 = new THREE.Group();
+    for (const g of [hp.walls, hp.roof, hp.trim]) {
+      const m = new THREE.Mesh(g, setMat);
+      m.castShadow = m.receiveShadow = true;
+      this.yard12.add(m);
+    }
+    this.yard12Win = new THREE.MeshBasicMaterial({ color: COLORS.windowLit });
+    this.yard12.add(new THREE.Mesh(hp.windows, this.yard12Win));
+    this.yard12.position.set(YARD12.x, heightAt(YARD12.x, YARD12.z), YARD12.z);
+    this.yard12.rotation.y = 0.4;
+    this.ruin = new THREE.Mesh(ruinGeometry(), setMat);
+    this.ruin.position.copy(this.yard12.position);
+    this.ruin.rotation.y = 0.4;
+    this.ruin.castShadow = this.ruin.receiveShadow = true;
+    this.sluice = new THREE.Mesh(sluiceGeometry(), setMat);
+    this.sluice.position.set(SLUICE.x, groundAt(SLUICE.x, SLUICE.z), SLUICE.z);
+    const c = WORLD.crevice;
+    this.sluice.rotation.y = Math.atan2(c.bx - c.ax, c.bz - c.az);
+    this.sluice.castShadow = this.sluice.receiveShadow = true;
+    for (const o of [this.yard12, this.ruin, this.sluice]) {
+      o.visible = false;
+      this.scene.add(o);
+    }
     this.actors = new ActorsView(tex);
     this.scene.add(this.actors.root);
     this.fx = new Fx(quality);
@@ -152,9 +182,22 @@ export class GameRenderer {
     return rt;
   }
 
-  /** Облик ночи: туман, морось, цветокоррекция. */
+  private readonly yard12: THREE.Group;
+  private readonly yard12Win: THREE.MeshBasicMaterial;
+  private readonly ruin: THREE.Mesh;
+  private readonly sluice: THREE.Mesh;
+
+  /** Облик ночи: туман, морось, цветокоррекция, декорации, фонарь. */
   setNight(n: NightDef): void {
     this.baseFog = n.fog;
+    this.yard12.visible = !!n.child;
+    this.ruin.visible = !!n.ruin;
+    this.sluice.visible = !!n.sluice;
+    // у ребёнка — керосиновая лампа: тёплая, широкая, короткая
+    this.flashlight.color.setHex(n.child ? 0xffa850 : 0xffe4b8);
+    this.flashlight.angle = n.child ? 1.0 : 0.5;
+    this.flashlight.penumbra = n.child ? 0.9 : 0.55;
+    this.aura.color.setHex(n.child ? 0xffa040 : 0xffd8a8);
     const look = n.look;
     this.atmos.rainOn = look.rain && this.quality >= 0;
     this.atmos.setMist(look.mist);
@@ -256,9 +299,11 @@ export class GameRenderer {
     const sanity = p.sanity / 100;
     if (this.flicker <= 0 && Math.random() < dt * (1 - sanity) * 0.8) this.flicker = 0.08 + Math.random() * 0.25;
     const flick = this.flicker > 0 ? (Math.random() < 0.5 ? 0.1 : 0.6) : 1;
-    this.flashlight.intensity = this.flashlightOn && p.alive ? 160 * flick : 0;
+    const tf = torchFactor(w);
+    this.flashlight.intensity = this.flashlightOn && p.alive ? 160 * flick * tf : 0;
+    this.flashlight.distance = 28 * tf;
     this.aura.position.set(p.x, p.y + 1.6, p.z);
-    this.aura.intensity = this.flashlightOn ? 5 : 0;
+    this.aura.intensity = this.flashlightOn ? (w.cfg.night.child ? 9 : 5) : 0;
     this.hemi.intensity = damp(this.hemi.intensity, this.cinematic ? 1.7 : 0.85, 2, dt);
     this.moon.intensity = damp(this.moon.intensity, this.cinematic ? 0.9 : 0.32, 2, dt);
     this.fog.density = damp(this.fog.density, this.cinematic ? this.baseFog * 0.55 : this.baseFog, 2, dt);
@@ -286,6 +331,14 @@ export class GameRenderer {
     // вода
     const wn = (this.view.water.material as THREE.MeshStandardMaterial).normalMap!;
     wn.offset.set(this.time * 0.01, this.time * 0.006);
+    // уровень воды живой: половодье заливает низину, обмелевший пруд уходит под ил
+    const wv = this.view.water;
+    wv.position.y = water.level;
+    wv.visible = water.level > WORLD.waterLevel - 1.5;
+    const flood = Math.max(0, water.level - WORLD.waterLevel);
+    wv.scale.setScalar(1 + Math.min(4, flood * 7));
+    // окна двенадцатого двора гаснут, когда вода поднимается
+    if (this.yard12.visible) this.yard12Win.color.setHex(water.level > -0.6 ? COLORS.windowDark : COLORS.windowLit);
 
     this.actors.update(w, dt, this.view.barrels);
     this.atmos.update(w, dt, this.flashlight, this.flashlightOn && this.flashlight.intensity > 1, this.camLook.x, this.camLook.z, this.windowGlows);

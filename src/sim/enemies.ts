@@ -1,9 +1,9 @@
 import { clamp, wrapAngle } from '../core/math';
 import { ENEMIES, Kind } from '../content/enemies';
-import { WORLD, groundAt, heightAt } from '../proc/terrain';
+import { WORLD, groundAt, heightAt, water } from '../proc/terrain';
 import { TRAIL_SIZE, type World } from './world';
 import type { Enemy } from './types';
-import { damagePlayer } from './combat';
+import { damagePlayer, killEnemy } from './combat';
 import { steerAround } from './collision';
 import { houseAt, toLocal } from './houses';
 import { doorOf } from '../proc/layout';
@@ -11,6 +11,14 @@ import { PLAYER_R } from './player';
 
 const TORCH_RANGE = 16;
 const TORCH_HALF = 0.44;
+
+/** Сила фонаря: керосиновая лампа ребёнка слабее, садящаяся батарейка — тусклее. */
+export function torchFactor(w: World): number {
+  if (w.cfg.night.child) return 0.6;
+  if (!w.cfg.night.battery) return 1;
+  const b = w.player.battery;
+  return b > 0 ? 0.45 + 0.55 * b : 0.25;
+}
 
 export function spawnEnemy(w: World, kind: Kind, x: number, z: number, fake = false): Enemy | null {
   const e = w.allocEnemy();
@@ -71,6 +79,7 @@ export function updateEnemies(w: World, dt: number): void {
     e.t += dt;
     e.atkCd = Math.max(0, e.atkCd - dt);
     e.flash = Math.max(0, e.flash - dt * 6);
+    e.reveal = Math.max(0, e.reveal - dt);
     e.fade = Math.min(1, e.fade + dt * 1.5);
 
     // --- освещённость ---
@@ -78,7 +87,8 @@ export function updateEnemies(w: World, dt: number): void {
     const dz = e.z - p.z;
     const dist = Math.hypot(dx, dz);
     e.litTorch = false;
-    if (dist < TORCH_RANGE && dist > 0.01) {
+    const range = TORCH_RANGE * torchFactor(w);
+    if (dist < range && dist > 0.01) {
       const dot = (dx * cx + dz * cz) / dist;
       if (dot > Math.cos(TORCH_HALF) || dist < 1.6) {
         const tWall = w.statics.raycast(p.x, p.z, dx / dist, dz / dist, dist, false);
@@ -112,10 +122,13 @@ export function updateEnemies(w: World, dt: number): void {
       case Kind.Unseeing:
         unseeing(w, e, dist, dt);
         break;
+      case Kind.Choir:
+        choir(w, e, dist, dt);
+        break;
     }
     if (!e.active) continue;
     // фигура «на воде» стоит на поверхности пруда
-    e.y = e.kind === Kind.Apparition && e.delay === 1 ? WORLD.waterLevel : Math.max(heightAt(e.x, e.z), onPierY(e));
+    e.y = e.kind === Kind.Apparition && e.delay === 1 ? water.level : Math.max(heightAt(e.x, e.z), onPierY(e));
   }
 
   separate(w);
@@ -345,6 +358,39 @@ function apparition(w: World, e: Enemy, dt: number): void {
     w.emit('vanish', e.x, e.y, e.z, e.kind, 0);
     e.active = false;
   }
+}
+
+/**
+ * Хор: одиннадцать жителей в одном теле. Пули его кормят (см. damageEnemy), тишина — убивает:
+ * если игрок не шумит дольше 2.5 с, песня захлёбывается. Раз в несколько секунд — волна песни:
+ * рассудок, урон рядом и новые шептуны, которые провоцируют стрелять.
+ */
+function choir(w: World, e: Enemy, dist: number, dt: number): void {
+  const p = w.player;
+  w.flags.add('choirUp');
+  const silent = w.time - p.lastNoiseT > 2.5;
+  if (silent) e.hp -= 7.5 * dt;
+  if (e.hp <= 0) {
+    killEnemy(w, e, false);
+    return;
+  }
+  if (dist < 30) moveToward(w, e, p.x, p.z, e.speed * (silent ? 0.6 : 1.3), dt);
+  e.tx -= dt;
+  if (e.tx <= 0) {
+    e.tx = 4.5;
+    w.emit('choirPulse', e.x, e.y + 1.5, e.z, silent ? 0 : 1);
+    if (dist < 14) {
+      p.sanity = Math.max(0, p.sanity - 5);
+      damagePlayer(w, 6, e.x, e.z, 2);
+    }
+    let alive = 0;
+    for (const o of w.enemies) if (o.active && o.kind === Kind.Whisperer) alive++;
+    for (let i = 0; i < 2 && alive < 10; i++, alive++) {
+      const a = w.rng.range(0, Math.PI * 2);
+      spawnEnemy(w, Kind.Whisperer, e.x + Math.cos(a) * 3, e.z + Math.sin(a) * 3);
+    }
+  }
+  contactAttack(w, e, dist, ENEMIES[Kind.Choir].dmg, ENEMIES[Kind.Choir].atkCd, 8);
 }
 
 /**

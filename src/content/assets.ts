@@ -34,7 +34,7 @@ export type ProcSoundId =
   | 'explosion' | 'fuse' | 'stepGrass' | 'stepWood' | 'stepDirt' | 'stepMud'
   | 'whisper' | 'screech' | 'growl' | 'roar' | 'hit' | 'gore' | 'death' | 'hurt'
   | 'heartbeat' | 'sting' | 'swell' | 'branch' | 'reel' | 'pickup' | 'ui' | 'static'
-  | 'speakerVoice' | 'cricket' | 'frog' | 'splash' | 'bounce' | 'knock' | 'creak' | 'slam' | 'scratch' | 'tapestop' | 'scream';
+  | 'speakerVoice' | 'cricket' | 'frog' | 'splash' | 'bounce' | 'knock' | 'creak' | 'slam' | 'scratch' | 'tapestop' | 'scream' | 'choir';
 
 export type SoundSource =
   | { proc: ProcSoundId; variations?: number }
@@ -72,6 +72,7 @@ export const SOUNDS = {
   ui: { proc: 'ui' },
   static: { proc: 'static' },
   speakerVoice: { proc: 'speakerVoice', variations: 3 },
+  choir: { proc: 'choir', variations: 2 },
   cricket: { proc: 'cricket', variations: 3 },
   frog: { proc: 'frog', variations: 2 },
   splash: { proc: 'splash', variations: 2 },

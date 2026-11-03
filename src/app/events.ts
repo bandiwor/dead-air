@@ -12,7 +12,7 @@ import { COLORS } from '../render/worldView';
 import type { SoundId } from '../content/assets';
 
 const STEP_SOUNDS: SoundId[] = ['stepGrass', 'stepWood', 'stepDirt', 'stepMud'];
-const SKIN: Record<number, number> = { [Kind.Whisperer]: 0x8e877c, [Kind.Mute]: 0x5a524a, [Kind.Echo]: 0x7a8682, [Kind.Apparition]: 0x101010, [Kind.Unseeing]: 0x7d8a8c };
+const SKIN: Record<number, number> = { [Kind.Whisperer]: 0x8e877c, [Kind.Mute]: 0x5a524a, [Kind.Echo]: 0x7a8682, [Kind.Apparition]: 0x101010, [Kind.Unseeing]: 0x7d8a8c, [Kind.Choir]: 0x6f6a62 };
 
 export interface EventCtx {
   audio: AudioEngine;
@@ -151,7 +151,7 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
     case 'pickup': {
       audio.play('pickup', { vol: 0.8 });
       vibrate([10, 30, 10]);
-      const text = e.a === 1 ? t('pickup.weapon', { name: t(WEAPONS[e.b]!.nameKey) }) : e.a === 2 ? t('pickup.dynamite') : e.a === 3 ? t('pickup.med') : t('pickup.ammo');
+      const text = e.a === 1 ? t('pickup.weapon', { name: t(WEAPONS[e.b]!.nameKey) }) : e.a === 2 ? t('pickup.dynamite') : e.a === 3 ? t('pickup.med') : e.a === 4 ? t('pickup.battery') : t('pickup.ammo');
       hud.toastText(text);
       break;
     }
@@ -233,6 +233,37 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
     case 'fragment':
       audio.play('whisper', { x: e.x, z: e.z, vol: 1, reverb: 0.5, rate: 0.9 });
       r.glitch = Math.max(r.glitch, 0.5);
+      break;
+    case 'shout':
+      // крик: собственный голос, сорванный, и «волна», проявляющая темноту
+      audio.play('scream', { x: e.x, z: e.z, vol: 0.55, rate: 0.62, reverb: 0.8 });
+      audio.play('swell', { vol: 0.3, rate: 0.7, reverb: 0.5 });
+      r.fx.shockRing(e.x, e.y, e.z, 14);
+      r.atmos.burst(e.x, e.y + 1, e.z, 6, 0x9fe8d8, 0.5, 0.4);
+      r.addTrauma(0.2);
+      vibrate([30, 30, 60]);
+      break;
+    case 'letter':
+      audio.play('whisper', { vol: 1, rate: 0.7, reverb: 0.6 });
+      audio.play('pickup', { vol: 0.6, rate: 0.6, reverb: 0.4 });
+      hud.toastText(t('pickup.letter', { l: e.s }));
+      r.glitch = Math.max(r.glitch, 0.7);
+      break;
+    case 'choirPulse':
+      audio.play('choir', { x: e.x, z: e.z, vol: 1.3, reverb: 0.6 });
+      r.addTrauma(dist < 14 ? 0.45 : 0.15);
+      r.glitch = Math.max(r.glitch, dist < 14 ? 0.8 : 0.3);
+      if (dist < 14) vibrate([50, 40, 50]);
+      break;
+    case 'feed':
+      // выстрел в Хор — он подхватывает звук
+      r.glitch = Math.max(r.glitch, 0.45);
+      audio.play('choir', { x: e.x, z: e.z, vol: 0.45, rate: 1.25, reverb: 0.4 });
+      break;
+    case 'drown':
+      audio.play('splash', { x: e.x, z: e.z, vol: 0.9, rate: 0.6, reverb: 0.3 });
+      r.hurt = Math.min(1, r.hurt + 0.25);
+      vibrate(40);
       break;
     case 'houseLight':
       audio.play('dryfire', { vol: 0.3, rate: 0.6 });

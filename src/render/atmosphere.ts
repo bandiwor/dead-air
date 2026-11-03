@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Kind } from '../content/enemies';
-import { WORLD, heightAt } from '../proc/terrain';
+import { WORLD, heightAt, water } from '../proc/terrain';
 import type { World } from '../sim/world';
 import { Rng } from '../core/rng';
 
@@ -430,7 +430,7 @@ export class Atmosphere {
     for (const e of w.enemies) {
       if (!e.active || e.kind === Kind.Apparition || e.fake) continue;
       if (e.kind === Kind.Echo && !e.litAny) continue;
-      if (e.y < WORLD.waterLevel - 0.1) continue;
+      if (e.y < water.level - 0.1) continue;
       blob(e.x, e.y, e.z, e.r * 1.5);
     }
     this.blobs.count = nb;
@@ -445,7 +445,7 @@ export class Atmosphere {
       const rr = Math.sqrt(this.rng.next()) * pd.r * 0.85;
       this.ripple(pd.x + Math.cos(a) * rr, pd.z + Math.sin(a) * rr, this.rainOn ? 0.35 : 0.6);
       for (const e of w.enemies) {
-        if (e.active && heightAt(e.x, e.z) < WORLD.waterLevel && Math.hypot(e.vx, e.vz) > 0.2) this.ripple(e.x, e.z, 1.4);
+        if (e.active && heightAt(e.x, e.z) < water.level && Math.hypot(e.vx, e.vz) > 0.2) this.ripple(e.x, e.z, 1.4);
       }
     }
     let nr = 0;
@@ -454,7 +454,7 @@ export class Atmosphere {
       r.t += dt;
       const k = r.t / r.max;
       const sc = 0.15 + k * 1.6 * r.s;
-      this.m4.compose(this.v.set(r.x, WORLD.waterLevel + 0.02, r.z), this.q.identity(), this.s.set(sc, 1, sc));
+      this.m4.compose(this.v.set(r.x, water.level + 0.02, r.z), this.q.identity(), this.s.set(sc, 1, sc));
       this.ripples.setMatrixAt(nr, this.m4);
       const br = (1 - k) * 0.22;
       this.ripples.setColorAt(nr, this.c.setRGB(br * 0.8, br, br));

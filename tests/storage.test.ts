@@ -48,12 +48,14 @@ describe('прогресс', () => {
   beforeEach(() => mem.clear());
 
   it('по умолчанию открыта одна ночь', () => {
-    expect(loadProgress()).toEqual({ unlocked: 1, seen: [] });
+    expect(loadProgress()).toEqual({ unlocked: 1, seen: [], ach: [], endings: [] });
   });
 
   it('сохраняется и валидируется', () => {
-    saveProgress({ unlocked: 2, seen: [0, 4] });
-    expect(loadProgress()).toEqual({ unlocked: 2, seen: [0, 4] });
+    saveProgress({ unlocked: 2, seen: [0, 4], ach: ['reel', 'dawn1'], endings: ['loop'] });
+    expect(loadProgress()).toEqual({ unlocked: 2, seen: [0, 4], ach: ['reel', 'dawn1'], endings: ['loop'] });
+    mem.set('dead-air:progress', JSON.stringify({ ach: ['ok', 42, '<script>', 'x'.repeat(99)] }));
+    expect(loadProgress().ach).toEqual(['ok']);
     mem.set('dead-air:progress', JSON.stringify({ unlocked: 9999, seen: [1, 'x', -3, 2.5, 4] }));
     const p = loadProgress();
     expect(p.unlocked).toBeLessThanOrEqual(20);

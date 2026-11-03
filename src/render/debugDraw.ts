@@ -11,6 +11,7 @@ const KIND_COLOR: Record<number, number> = {
   [Kind.Echo]: 0x66ffee,
   [Kind.Apparition]: 0xcc88ff,
   [Kind.Unseeing]: 0x88aaff,
+  [Kind.Choir]: 0xff88cc,
 };
 const DYN_MAX = 24000;
 

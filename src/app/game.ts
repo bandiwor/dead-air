@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { World } from '../sim/world';
-import { NIGHTS } from '../content/nights';
+import { MENU_NIGHTS, NIGHTS } from '../content/nights';
+import type { NightDef } from '../content/night';
 import { emptyInput } from '../sim/types';
 import { hashString } from '../core/rng';
 import { AudioEngine } from '../audio/engine';
@@ -21,6 +22,8 @@ import { t } from '../i18n';
 import { handleEvents, nearestEnemy } from './events';
 import { BESTIARY } from '../content/bestiary';
 import { DevTools } from './devtools';
+import { AchievementTracker } from './achievements';
+import { AchToast } from '../ui/achToast';
 
 type Mode = 'boot' | 'loading' | 'title' | 'intro' | 'play' | 'note' | 'beast' | 'pause' | 'dying' | 'dead' | 'dawn' | 'dawnScreen';
 
@@ -63,6 +66,10 @@ export class Game {
   private stepOnce = false;
   private dev: DevTools | null = null;
   private statsT = 0;
+  /** Индекс следующей части ночи, которая начнётся после рассветной сцены (или −1). */
+  private chainNext = -1;
+  readonly ach: AchievementTracker;
+  private readonly achToast: AchToast;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -87,11 +94,12 @@ export class Game {
         void this.load().catch((e: unknown) => this.fail(e));
       },
       onStart: (n: number) => {
-        this.nightIdx = n;
+        this.nightIdx = Math.max(0, NIGHTS.indexOf(MENU_NIGHTS[n]!));
         this.startNight();
       },
       onNext: () => {
-        this.nightIdx = Math.min(NIGHTS.length - 1, this.nightIdx + 1);
+        const nx = this.nextMenuNight(NIGHTS[this.nightIdx]!);
+        if (nx) this.nightIdx = NIGHTS.indexOf(nx);
         this.startNight();
       },
       onResume: () => this.resume(),
@@ -106,6 +114,13 @@ export class Game {
       onUpdateApply: () => void this.updater.apply(),
     });
     this.world = this.makeWorld();
+    this.achToast = new AchToast(root);
+    this.ach = new AchievementTracker(this.progress, () => saveProgress(this.progress), (a) => {
+      this.achToast.push(a);
+      this.audio.play('pickup', { bus: 'ui', vol: 0.7, rate: a.rarity === 'legendary' ? 0.7 : 1, reverb: 0.3 });
+      this.screens.setAchievements(this.progress.ach);
+    });
+    this.screens.setAchievements(this.progress.ach);
     this.refreshNights();
     this.screens.open('boot');
     this.updater.onChange = (st) => this.onUpdateStatus(st);
@@ -235,11 +250,12 @@ export class Game {
     if (!this.renderer) return;
     this.attempt++;
     this.world = this.makeWorld();
+    this.ach.resetNight();
     this.hud.clearSubs();
     this.screens.open('none');
     this.renderer.fade = 0;
     this.renderer.hurt = 0;
-    this.amb.setRadio(true);
+    this.amb.setRadio(!NIGHTS[this.nightIdx]!.noRadio);
     void enterImmersive();
     this.renderer.setNight(NIGHTS[this.nightIdx]!);
     if (!this.introSeen.has(this.nightIdx)) {
@@ -280,7 +296,12 @@ export class Game {
   }
 
   refreshNights(): void {
-    this.screens.setNights(NIGHTS.map((n) => n.titleKey), this.progress.unlocked);
+    this.screens.setNights(MENU_NIGHTS.map((n) => n.titleKey), this.progress.unlocked);
+  }
+
+  /** Следующая ночь в меню (части одной ночи не считаются). */
+  private nextMenuNight(n: NightDef): NightDef | undefined {
+    return MENU_NIGHTS.find((m) => m.index === n.index + 1);
   }
 
   private brokenCount(): number {
@@ -413,6 +434,13 @@ export class Game {
         r.fade = 0;
         this.hud.clearSubs();
         this.beginPlay();
+      } else if (this.chainNext >= 0) {
+        // часть ночи окончена — сразу следующая часть, без экрана рассвета
+        r.fade = 1;
+        this.nightIdx = this.chainNext;
+        this.chainNext = -1;
+        this.letterbox(false);
+        this.startNight();
       } else {
         r.fade = 1;
         this.mode = 'dawnScreen';
@@ -462,19 +490,34 @@ export class Game {
         const w2 = this.world;
         const truth = this.brokenCount() * 2 + w2.notesRead.length + w2.fragments;
         const night = w2.cfg.night;
-        const shots: Shot[] = night.dawn.map((sh, i) => (i === night.dawn.length - 1 && truth >= 5 ? { ...sh, line: night.dawnTruth } : sh));
-        // рассвет открывает следующую ночь
-        if (this.progress.unlocked < night.index + 1 && night.index < NIGHTS.length) {
+        let shots: Shot[] = night.dawn.map((sh, i) => (i === night.dawn.length - 1 && truth >= 5 ? { ...sh, line: night.dawnTruth } : sh));
+        let title = night.dawnTitle;
+        let sub = night.dawnSub;
+        // у ночи может быть несколько концовок — выбирает флаг, поставленный решением игрока
+        const end = night.endings?.find((e) => w2.flags.has(e.flag));
+        if (end) {
+          shots = end.dawn;
+          title = end.title;
+          sub = end.sub;
+          const id = end.flag.replace('end:', '');
+          if (!this.progress.endings.includes(id)) this.progress.endings.push(id);
+        }
+        const nextPart = night.next ? NIGHTS.findIndex((n) => n.id === night.next) : -1;
+        this.chainNext = nextPart;
+        // рассвет открывает следующую ночь (но не часть той же самой)
+        if (nextPart < 0 && this.progress.unlocked < night.index + 1) {
           this.progress.unlocked = night.index + 1;
-          saveProgress(this.progress);
           this.refreshNights();
         }
-        this.screens.setDawn(night.dawnTitle, night.dawnSub, t('dawn.stats', { r: this.brokenCount(), n: w2.notesRead.length, f: w2.fragments }), night.index < NIGHTS.length);
+        saveProgress(this.progress);
+        this.screens.setDawn(title, sub, t('dawn.stats', { r: this.brokenCount(), n: w2.notesRead.length, f: w2.fragments }), !!this.nextMenuNight(night));
         this.cut = new Cutscene(shots);
         this.cut.onLine = (k) => this.hud.line(k, 0);
         this.cut.start();
       },
     };
+    this.ach.onEvents(w);
+    if (this.mode === 'play' || this.mode === 'dying') this.ach.check(w);
     handleEvents(w, ctx, dt);
 
     const playing = this.mode === 'play' || this.mode === 'note' || this.mode === 'beast' || this.mode === 'dying' || this.mode === 'pause';
@@ -490,6 +533,7 @@ export class Game {
         sanity: p.sanity / 100,
         hp: p.hp / 100,
         deadAir: w.deadAir,
+        radioGain: w.radioGain,
         nearestEnemy,
         playing: this.mode !== 'boot',
       },
@@ -515,6 +559,7 @@ export class Game {
           goal = r.project(d.x, 1, d.z);
         }
       } else if (m?.pier) goal = r.project(WORLD.pier.x1 - 0.5, 1, (WORLD.pier.z0 + WORLD.pier.z1) / 2);
+      else if (m?.at) goal = r.project(m.at[0], 1, m.at[1]);
       this.hud.update(w, dt, this.input.usingTouch || isTouch(), r.project(door.x, 1, door.z), goal);
     }
   }
