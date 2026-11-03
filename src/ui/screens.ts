@@ -17,6 +17,7 @@ export interface ScreenHandlers {
   /** Строка «Обновления» в настройках: проверить или применить. */
   onUpdateRow: () => void;
   onUpdateApply: () => void;
+  onInstallRow: () => void;
 }
 
 type ScreenId = 'boot' | 'disclaimer' | 'loading' | 'title' | 'settings' | 'pause' | 'dead' | 'dawn' | 'achievements' | 'none';
@@ -46,6 +47,7 @@ export class Screens {
   private readonly updateModal: HTMLElement;
   private updateText = '';
   private versionLabel = '';
+  private installMode: 'none' | 'prompt' | 'ios' = 'none';
   current: ScreenId = 'none';
 
   constructor(parent: HTMLElement, settings: Settings, handlers: ScreenHandlers) {
@@ -84,8 +86,10 @@ export class Screens {
     h('div', 'sub', t('ui.subtitle'), title);
     const menu = h('div', 'menu', undefined, title);
     this.nightMenu = h('div', 'menu nights', undefined, menu);
-    this.button(menu, 'ui.achievements', () => this.open('achievements'));
-    this.button(menu, 'ui.settings', () => this.openSettings('title'));
+    // второстепенное — в одну строку, чтобы меню влезало в горизонтальный телефон
+    const extra = h('div', 'menu row title-extra', undefined, menu);
+    this.button(extra, 'ui.achievements', () => this.open('achievements'));
+    this.button(extra, 'ui.settings', () => this.openSettings('title'));
     h('div', 'small foot', t('ui.credits'), title);
 
     this.screen('settings');
@@ -145,6 +149,18 @@ export class Screens {
 
   showUpdatePrompt(on: boolean): void {
     show(this.updateModal, on);
+  }
+
+  /** Можно ли установить игру (строка в настройках). */
+  setInstallMode(mode: 'none' | 'prompt' | 'ios'): void {
+    if (mode === this.installMode) return;
+    this.installMode = mode;
+    if (this.current === 'settings') this.buildSettings();
+  }
+
+  /** Открыто ли окно обновления (чтобы не показывать два окна сразу). */
+  get updateOpen(): boolean {
+    return !this.updateModal.classList.contains('hidden');
   }
 
   /** Статус обновления для строки в настройках. */
@@ -327,6 +343,15 @@ export class Screens {
     row('settings.quality', t(`settings.quality.${s.quality}` as StrKey), () => (s.quality = (s.quality + 1) % 3));
     row('settings.volume', `${Math.round(s.volume * 100)}%`, () => (s.volume = s.volume >= 1 ? 0 : Math.round((s.volume + 0.2) * 10) / 10));
     row('settings.debug', onoff(s.debug), () => (s.debug = !s.debug));
+    if (this.installMode !== 'none') {
+      const ins = h('button', 'setting', undefined, box);
+      h('span', '', t('settings.install'), ins);
+      h('span', 'val', t(this.installMode === 'ios' ? 'settings.install.ios' : 'settings.install.go'), ins);
+      ins.addEventListener('click', () => {
+        this.h.onClick();
+        this.h.onInstallRow();
+      });
+    }
     const upd = h('button', 'setting', undefined, box);
     h('span', '', t('settings.updates'), upd);
     h('span', 'val', this.updateText, upd);

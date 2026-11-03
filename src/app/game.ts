@@ -24,6 +24,8 @@ import { BESTIARY } from '../content/bestiary';
 import { DevTools } from './devtools';
 import { AchievementTracker } from './achievements';
 import { AchToast } from '../ui/achToast';
+import { Installer } from '../platform/install';
+import { InstallCard } from '../ui/installCard';
 
 type Mode = 'boot' | 'loading' | 'title' | 'intro' | 'play' | 'note' | 'beast' | 'pause' | 'dying' | 'dead' | 'dawn' | 'dawnScreen';
 
@@ -68,6 +70,12 @@ export class Game {
   private statsT = 0;
   /** Индекс следующей части ночи, которая начнётся после рассветной сцены (или −1). */
   private chainNext = -1;
+  private readonly installer = new Installer();
+  private installCard!: InstallCard;
+  /** Предложение установки показывается не чаще раза за запуск и не сразу. */
+  private installOffered = false;
+  /** Когда (performance.now) игрок оказался в меню; 0 — не в меню. */
+  private installAt = 0;
   readonly ach: AchievementTracker;
   private readonly achToast: AchToast;
 
@@ -112,7 +120,25 @@ export class Game {
         else void this.updater.check();
       },
       onUpdateApply: () => void this.updater.apply(),
+      onInstallRow: () => this.openInstall(),
     });
+    this.installCard = new InstallCard(root, {
+      onInstall: () => {
+        this.installCard.close();
+        void this.installer.install();
+      },
+      onLater: () => {
+        this.installer.snooze();
+        this.installCard.close();
+      },
+      onNever: () => {
+        this.installer.never();
+        this.installCard.close();
+      },
+      onClick: () => this.audio.play('ui', { bus: 'ui', vol: 0.8, reverb: 0 }),
+    });
+    this.installer.onChange = () => this.screens.setInstallMode(this.installer.mode);
+    this.screens.setInstallMode(this.installer.mode);
     this.world = this.makeWorld();
     this.achToast = new AchToast(root);
     this.ach = new AchievementTracker(this.progress, () => saveProgress(this.progress), (a) => {
@@ -231,6 +257,30 @@ export class Game {
     if (!menus.includes(this.mode)) return;
     this.updateOffered = true;
     this.screens.showUpdatePrompt(true);
+  }
+
+  /** Окошко установки по кнопке в настройках — без учёта «позже». */
+  private openInstall(): void {
+    this.installOffered = true;
+    this.installCard.open(this.installer.mode);
+  }
+
+  /** Само предлагает установку: только в меню, через пару секунд, если не мешает окно обновления. */
+  private maybeOfferInstall(): void {
+    const menu = this.mode === 'title' || this.mode === 'dawnScreen';
+    if (!menu) {
+      this.installAt = 0;
+      // посреди игры окошко не висит; в паузе (из настроек) — можно
+      const busy = this.mode === 'play' || this.mode === 'intro' || this.mode === 'dawn' || this.mode === 'dying';
+      if (busy && this.installCard.isOpen) this.installCard.close();
+      return;
+    }
+    if (this.installOffered || this.screens.updateOpen || !this.installer.shouldOffer()) return;
+    const now = performance.now();
+    if (this.installAt === 0) this.installAt = now;
+    if (now - this.installAt < 2500) return;
+    this.installOffered = true;
+    this.installCard.open(this.installer.mode);
   }
 
   private toTitle(): void {
@@ -403,6 +453,7 @@ export class Game {
     this.modeT += dt;
     const r = this.renderer;
     if (!r) return;
+    this.maybeOfferInstall();
     const w = this.world;
 
     if (this.mode === 'play' || this.mode === 'dying') {
