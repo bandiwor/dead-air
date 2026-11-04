@@ -429,12 +429,29 @@ function unseeing(w: World, e: Enemy, dist: number, dt: number): void {
     e.kx *= Math.exp(-6 * dt);
     e.kz *= Math.exp(-6 * dt);
     e.state = 1;
+    e.seenYaw = p.yaw;
     return;
   }
   if (e.state === 1) {
     // сорвался с места, как только вы отвели взгляд
     e.state = 0;
     if (dist < 10) w.emit('alert', e.x, e.y, e.z, 1);
+    // Наказ: «если кто-то закрыл лицо руками — не отворачивайтесь». Не мигнувший свет, а именно
+    // поворот спиной к тому, кто рядом, — нарушение, и он бросается сразу, рывком.
+    const rule = w.cfg.night.turnRule;
+    const turned = Math.abs(wrapAngle(p.yaw - e.seenYaw)) > 1.2;
+    if (rule && turned && dist < 7 && e.delay !== 2) {
+      w.flags.add(`broke:${rule}`);
+      w.flags.add('turnedAway');
+      const d = dist || 1;
+      e.kx += ((p.x - e.x) / d) * 9;
+      e.kz += ((p.z - e.z) / d) * 9;
+      e.atkCd = 0;
+    }
+  }
+  if (e.delay === 2) {
+    procession(w, e, dt);
+    return;
   }
   let tx = p.x;
   let tz = p.z;
@@ -446,6 +463,40 @@ function unseeing(w: World, e: Enemy, dist: number, dt: number): void {
     if (dist < 14) w.emit('echoStep', e.x, e.y, e.z, 1);
   }
   contactAttack(w, e, dist, ENEMIES[Kind.Unseeing].dmg, ENEMIES[Kind.Unseeing].atkCd, 5);
+}
+
+/**
+ * Процессия: одиннадцать выходят из Глядня и идут к радиоузлу — домой. Не нападают.
+ * Пока на них светят — стоят. Дошедший до двери «входит» в дом: эфир гаснет.
+ * Не дошедшие к концу — уходят обратно под воду.
+ */
+function procession(w: World, e: Enemy, dt: number): void {
+  const d = w.layout.hutDoor;
+  if (e.age < 0) {
+    // ещё под водой — ждёт своей очереди
+    e.vx = e.vz = 0;
+    return;
+  }
+  if (e.age > 55) {
+    w.emit('vanish', e.x, e.y, e.z, e.kind, 0);
+    e.active = false;
+    return;
+  }
+  moveToward(w, e, d.x, d.z, 1.15, dt);
+  e.stepAcc += 1.15 * dt;
+  if (e.stepAcc > 1.4) {
+    e.stepAcc = 0;
+    w.emit('echoStep', e.x, e.y, e.z, 1);
+  }
+  if (Math.hypot(e.x - d.x, e.z - d.z) < 1.8) {
+    // вошёл в дом, который когда-то был его: радио захлёбывается
+    w.air = 0;
+    w.flags.add('procReached');
+    w.player.sanity = Math.max(0, w.player.sanity - 8);
+    w.emit('scare', e.x, 1, e.z, -1, 0, 0, 'wet');
+    w.emit('vanish', e.x, e.y, e.z, e.kind, 2);
+    e.active = false;
+  }
 }
 
 /**

@@ -4,7 +4,7 @@ import type { World } from '../sim/world';
 import { WORLD, groundAt, heightAt, water } from '../proc/terrain';
 import { torchFactor } from '../sim/enemies';
 import { SLUICE, YARD12 } from '../content/night3';
-import { boatGeometry, houseGeometry, ruinGeometry, sluiceGeometry } from './models';
+import { boatGeometry, houseGeometry, humanoidGeometry, ruinGeometry, sluiceGeometry } from './models';
 import type { TextureSet } from './textures';
 import { buildWorldView, COLORS, type WorldView } from './worldView';
 import { ActorsView } from './actors';
@@ -162,6 +162,36 @@ export class GameRenderer {
       o.visible = false;
       this.scene.add(o);
     }
+    // ---- то, что видно только в отражении: на крыльце радиоузла — мальчик без рта,
+    // на дне пруда — двенадцатый двор со светом в окне, за спиной — кто-то
+    const ghostMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x0a1a18 });
+    ghostMat.color.setScalar(1.3);
+    const boy = new THREE.Mesh(humanoidGeometry({ height: 1.25, coat: 0x3a4440, skin: 0x9aa8a4, pants: 0x262a28, thin: 0.85 }), ghostMat);
+    const hd = w.layout.hutDoor;
+    boy.position.set(hd.x, heightAt(hd.x, hd.z), hd.z + 0.4);
+    const drowned = new THREE.Group();
+    const dp = houseGeometry(5.6, 4.6, 2.8, 212, false, false);
+    for (const g of [dp.walls, dp.roof, dp.trim]) drowned.add(new THREE.Mesh(g, setMat));
+    drowned.add(new THREE.Mesh(dp.windows, new THREE.MeshBasicMaterial({ color: COLORS.windowLit })));
+    drowned.position.set(YARD12.x - 6, heightAt(YARD12.x - 6, YARD12.z - 4), YARD12.z - 4);
+    drowned.rotation.y = 0.7;
+    const drownedLight = new THREE.PointLight(0xffa850, 18, 9, 1.6);
+    drownedLight.position.set(drowned.position.x, drowned.position.y + 1.4, drowned.position.z);
+    this.reflectFigure = new THREE.Mesh(
+      humanoidGeometry({ height: 2.2, coat: 0x060606, skin: 0x0a0a0a, pants: 0x050505, thin: 0.7, armLen: 1.05, headTilt: 0.45 }),
+      new THREE.MeshLambertMaterial({ vertexColors: true, color: 0x111111 }),
+    );
+    this.reflectFigure.visible = false;
+    this.reflectGlints = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.09, 0), new THREE.MeshBasicMaterial({ color: 0x9fe8d8 }), 8);
+    this.reflectGlints.count = 0;
+    this.reflectGlints.frustumCulled = false;
+    this.reflectSet.add(boy, drowned, drownedLight, this.reflectFigure, this.reflectGlints);
+    this.reflectSet.traverse((o) => o.layers.set(GameRenderer.REFLECT_LAYER));
+    this.reflectSet.visible = false;
+    this.scene.add(this.reflectSet);
+    // лужи — тёмные зеркальца на земле
+    this.puddleMat = new THREE.MeshStandardMaterial({ color: 0x14222a, roughness: 0.08, metalness: 0, emissive: 0x05090c, normalMap: tex.waterNormal, normalScale: new THREE.Vector2(0.3, 0.3) });
+    this.scene.add(this.puddles);
     this.actors = new ActorsView(tex);
     this.scene.add(this.actors.root);
     this.fx = new Fx(quality);
@@ -187,6 +217,20 @@ export class GameRenderer {
 
   private readonly yard12: THREE.Group;
   private readonly yard12Win: THREE.MeshBasicMaterial;
+  /** Слой 2 — то, что видно только в отражении. */
+  private static readonly REFLECT_LAYER = 2;
+  private readonly reflectSet = new THREE.Group();
+  private readonly tmpM = new THREE.Matrix4();
+  private readonly tmpQ = new THREE.Quaternion();
+  private readonly tmpS = new THREE.Vector3();
+  private readonly up = new THREE.Vector3(0, 1, 0);
+  private readonly reflectFigure: THREE.Mesh;
+  private readonly reflectGlints: THREE.InstancedMesh;
+  private readonly puddles = new THREE.Group();
+  private readonly puddleMat: THREE.MeshStandardMaterial;
+  private reflectK = 0;
+  /** Рассвет второй ночи: вода ушла, из неё торчит конёк двенадцатого двора. */
+  sunkenYard = false;
   private readonly ruin: THREE.Mesh;
   private readonly sluice: THREE.Mesh;
   private readonly boat: THREE.Mesh;
@@ -199,6 +243,19 @@ export class GameRenderer {
     this.baseFog = n.fog;
     this.nightCam = n.cam ?? 1;
     this.yard12.visible = !!n.child;
+    this.sunkenYard = false;
+    this.yard12.position.set(YARD12.x, heightAt(YARD12.x, YARD12.z), YARD12.z);
+    this.reflectSet.visible = !!n.reflect;
+    this.camera.layers.disable(GameRenderer.REFLECT_LAYER);
+    this.reflectK = 0;
+    this.puddles.clear();
+    for (const pd of n.reflect?.puddles ?? []) {
+      const m = new THREE.Mesh(new THREE.CircleGeometry(pd.r, 18).rotateX(-Math.PI / 2), this.puddleMat);
+      m.position.set(pd.x, heightAt(pd.x, pd.z) + 0.03, pd.z);
+      m.scale.set(1, 1, 0.75 + ((pd.x * 7.3) % 1) * 0.3);
+      m.receiveShadow = true;
+      this.puddles.add(m);
+    }
     this.boat.visible = !!n.child;
     this.boatAt = null;
     this.yard12Sink = 0;
@@ -412,6 +469,13 @@ export class GameRenderer {
       // к утру над водой остаётся только конёк крыши
       this.yard12.position.y = heightAt(YARD12.x, YARD12.z) - this.yard12Sink * (heightAt(YARD12.x, YARD12.z) + 4.6 - water.level);
     }
+    if (this.sunkenYard) {
+      // рассвет второй ночи: вода ушла, из неё торчит конёк — дом стоит на дне
+      // стоит посреди пруда, в самой глубине: низ скрыт илом и водой, над водой — только конёк
+      this.yard12.visible = true;
+      this.yard12Win.color.setHex(COLORS.windowDark);
+      this.yard12.position.set(WORLD.pond.x, water.level - 4.6, WORLD.pond.z);
+    }
     if (this.boat.visible) {
       const bx = this.boatAt?.x ?? WORLD.pier.x1 + 1.1;
       const bz = this.boatAt?.z ?? (WORLD.pier.z0 + WORLD.pier.z1) / 2 + 1.4;
@@ -458,6 +522,32 @@ export class GameRenderer {
     }
     this.actors.face.visible = faceOn;
     this.post.u.uInvert.value = invert;
+
+    // ---- отражение: плавный «провал» взгляда в воду, слой того, что видно только там
+    this.reflectK = damp(this.reflectK, w.reflecting ? 1 : 0, 7, dt);
+    this.post.u.uReflect.value = this.reflectK;
+    const deep = this.reflectK > 0.5;
+    if (deep) this.camera.layers.enable(GameRenderer.REFLECT_LAYER);
+    else this.camera.layers.disable(GameRenderer.REFLECT_LAYER);
+    // в отражении поверхность пруда прозрачна — видно дно и то, что на нём
+    if (deep) this.view.water.visible = false;
+    const fig = w.reflectFigure;
+    this.reflectFigure.visible = !!fig;
+    if (fig) {
+      this.reflectFigure.position.set(fig.x, heightAt(fig.x, fig.z), fig.z);
+      this.reflectFigure.rotation.y = Math.atan2(w.player.x - fig.x, w.player.z - fig.z);
+    }
+    let rg = 0;
+    for (const it of w.interactables) {
+      if (!it.reflect || !it.enabled || it.used || rg >= 8) continue;
+      if (it.house >= 0 && w.playerHouse !== it.house) continue;
+      const pulse = 0.8 + Math.sin(this.time * 4 + it.x) * 0.3;
+      this.tmpM.compose(this.tmp.set(it.x, heightAt(it.x, it.z) + 0.5, it.z), this.tmpQ.setFromAxisAngle(this.up, this.time), this.tmpS.set(pulse, pulse * 1.4, pulse));
+      this.reflectGlints.setMatrixAt(rg++, this.tmpM);
+    }
+    this.reflectGlints.count = rg;
+    this.reflectGlints.instanceMatrix.needsUpdate = true;
+    this.puddleMat.normalMap!.offset.set(this.time * 0.02, this.time * 0.013);
     // дома: снять крышу над тем, где игрок; двери; свет внутри
     const v = this.view;
     for (let i = 0; i < v.roofs.length; i++) v.roofs[i]!.visible = w.playerHouse !== i;

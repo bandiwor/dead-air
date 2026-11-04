@@ -222,6 +222,16 @@ export class AudioEngine {
     o.stop(t + 3);
   }
 
+  /** Взгляд под воду: всё глухо, как сквозь толщу воды. */
+  underwater(on: boolean): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const f = this.muffle.frequency;
+    f.cancelScheduledValues(t);
+    f.setTargetAtTime(on ? 420 : 20000, t, on ? 0.12 : 0.3);
+  }
+
   /** Приглушить фон (перед ударом страха — тишина). */
   duck(seconds: number): void {
     const ctx = this.ctx;

@@ -185,6 +185,25 @@ export class Narrative {
       const c = WORLD.crevice;
       const e = spawnEnemy(w, Kind.Choir, c.bx + (c.ax - c.bx) * 0.18, c.bz + (c.az - c.bz) * 0.18);
       if (e) e.tx = 3;
+    } else if (at === 'procession') {
+      // одиннадцать — цепочкой из пруда в сторону радиоузла, один за другим
+      const d = w.layout.hutDoor;
+      const pc = WORLD.pond;
+      const dx = d.x - pc.x;
+      const dz = d.z - pc.z;
+      const l = Math.hypot(dx, dz) || 1;
+      for (let i = 0; i < 11; i++) {
+        const k = pc.r * 0.92 - i * 1.5;
+        const side = (i % 2 ? 1 : -1) * 0.5;
+        const x = pc.x + (dx / l) * k - (dz / l) * side;
+        const z = pc.z + (dz / l) * k + (dx / l) * side;
+        const e = spawnEnemy(w, Kind.Unseeing, x, z);
+        if (e) {
+          e.delay = 2;
+          e.age = -i * 0.6; // выходят из воды по очереди
+        }
+      }
+      w.flags.add('procession');
     } else if (at === 'behind') {
       const a = p.yaw + Math.PI;
       const e = spawnEnemy(w, Kind.Apparition, p.x + Math.cos(a) * 1.3, p.z + Math.sin(a) * 1.3);

@@ -1,7 +1,7 @@
 import { Rng } from '../core/rng';
 import { clamp } from '../core/math';
 import { buildLayout, type Layout } from '../proc/layout';
-import { WORLD, water } from '../proc/terrain';
+import { WORLD, isWater, water } from '../proc/terrain';
 import { WEAPONS } from '../content/weapons';
 import type { NightDef } from '../content/night';
 import { Kind } from '../content/enemies';
@@ -65,6 +65,12 @@ export class World {
   readonly trail = new Float32Array(TRAIL_SIZE * 2);
   trailCount = 0;
   readonly past = new Float32Array(PAST_SIZE * PAST_STRIDE);
+  /** Смотрит ли игрок сейчас в воду, может ли посмотреть здесь, сколько раз уже смотрел. */
+  reflecting = false;
+  canReflect = false;
+  reflectCount = 0;
+  /** Кто стоит за спиной в отражении (виден только там; когда вы поднимете глаза — окажется рядом). */
+  reflectFigure: { x: number; z: number } | null = null;
   pastCount = 0;
 
   /** Шумы: x, z, громкость, время. Кольцо из 8. */
@@ -124,7 +130,7 @@ export class World {
       owned: WEAPONS.map((w) => cfg.night.startWeapons.includes(w.id)),
       cooldown: 0, reload: 0, dynamite: 3, throwCd: 0, stillT: 0, moving: false, invuln: 0,
       stepAcc: 0, reel: 0, holdingReel: false, inLight: true, lastNoiseT: -99, canReel: false,
-      focus: -1, focusHold: 0, actionPrev: false, holding: false, voiceCd: 0, battery: 1, fired: 0, aimHold: 0,
+      focus: -1, focusHold: 0, actionPrev: false, holding: false, voiceCd: 0, battery: 1, fired: 0, aimHold: 0, breath: 1,
     };
     this.doorOpen = this.statics.doorOpen;
     water.level = cfg.night.water?.from ?? WORLD.waterLevel;
@@ -177,6 +183,9 @@ export class World {
         [x, z] = toWorld(hut, -hut.w / 2 - 0.7, 0);
       } else if (a === 'hutDoorSide') {
         [x, z] = toWorld(hut, 1.3, hut.d / 2 + 0.6);
+      } else if ('door' in a) {
+        const h = this.layout.houses[a.door];
+        if (h) ({ x, z } = doorOf(h, 0.9));
       } else if ('house' in a) {
         const h = this.layout.houses[a.house];
         if (h) [x, z] = toWorld(h, a.x, a.z);
@@ -185,8 +194,22 @@ export class World {
         x = a.x;
         z = a.z;
       }
-      add({ id: ex.id, kind: 'custom', x, z, r: ex.r, house, enabled: ex.enabled, hold: ex.hold, prompt: ex.prompt, rule: ex.rule, once: ex.once, glint: !!ex.glint, effects: ex.effects });
+      const noteFx = ex.effects.find((e) => 'note' in e);
+      const noteKey = noteFx && 'note' in noteFx ? noteFx.note : '';
+      add({ id: ex.id, kind: 'custom', x, z, r: ex.r, house, enabled: ex.enabled, hold: ex.hold, prompt: ex.prompt, rule: ex.rule, once: ex.once, glint: !!ex.glint, effects: ex.effects, reflect: !!ex.reflect, key: noteKey });
     }
+  }
+
+  /** Есть ли рядом вода, в которую можно заглянуть: берег пруда, лужа, подпол. */
+  waterNear(x: number, z: number): boolean {
+    const rf = this.cfg.night.reflect;
+    if (!rf) return false;
+    for (const pd of rf.puddles) if (Math.hypot(x - pd.x, z - pd.z) < pd.r + 0.6) return true;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      if (isWater(x + Math.cos(a) * 1.5, z + Math.sin(a) * 1.5)) return true;
+    }
+    return false;
   }
 
   /** Отложенное действие сценария (в секундах симуляции). */

@@ -37,7 +37,7 @@ export type EvType =
   | 'reload' | 'dryfire' | 'swap' | 'pickup' | 'throw' | 'flareLand' | 'deadAir' | 'airRestored'
   | 'reelProgress' | 'line' | 'scare' | 'waveStart' | 'waveEnd' | 'dawn' | 'alert' | 'growl' | 'charge'
   | 'vanish' | 'bounce' | 'spawn' | 'splash' | 'note' | 'knock' | 'door' | 'houseLight' | 'fragment'
-  | 'shout' | 'letter' | 'choirPulse' | 'feed' | 'drown' | 'ignite';
+  | 'shout' | 'letter' | 'choirPulse' | 'feed' | 'drown' | 'ignite' | 'reflect' | 'reflectFigure' | 'overstay';
 
 export interface SimEvent {
   type: EvType;
@@ -86,6 +86,8 @@ export class Enemy {
   burn = 0;
   /** Секунд с появления — для анимации выхода (в отличие от t, никогда не сбрасывается). */
   age = 0;
+  /** Куда смотрел игрок, когда это существо было в луче (Невидевшие: «отвернулся ли»). */
+  seenYaw = 0;
   stepAcc = 0;
   /** Для Отголоска: отставание по следу (в отсчётах). */
   delay = 0;
@@ -176,6 +178,8 @@ export interface Player {
   fired: number;
   /** Сколько ещё держать взгляд на прицеле после «жёсткого» прицеливания/выстрела (с). */
   aimHold: number;
+  /** Вдох (0..1): тратится, пока смотришь в воду. */
+  breath: number;
 }
 
 export type InteractKind = 'knock' | 'note' | 'custom';
@@ -197,5 +201,7 @@ export class Interactable {
   rule = false;
   once = true;
   glint = false;
+  /** Только в отражении. */
+  reflect = false;
   effects: readonly import('../content/script').Effect[] = [];
 }

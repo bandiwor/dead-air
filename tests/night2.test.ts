@@ -51,7 +51,11 @@ describe('ночь вторая', () => {
     walkTo(w, d.x, d.z, log);
     const f = emptyInput();
     f.action = true;
+    // нажатие — постучать (можно), удержание — открыть (нарушение пункта 2)
     step(w, f, 0.1, log);
+    expect(w.flags.has('broke:2')).toBe(false);
+    step(w, emptyInput(), 0.2, log);
+    step(w, f, 1.2, log);
     step(w, emptyInput(), 3, log);
     expect(w.flags.has('broke:2')).toBe(true);
     expect(w.doorOpen[0]).toBe(true);

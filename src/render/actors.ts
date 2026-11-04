@@ -235,7 +235,7 @@ export class ActorsView {
       // выход из земли/воды: тело поднимается снизу, у каждого своя скорость
       let y = e.y;
       const emerge = (secs: number, depth: number): number => {
-        const k = Math.min(1, e.age / secs);
+        const k = Math.max(0, Math.min(1, e.age / secs));
         return -(1 - k * k * (3 - 2 * k)) * depth;
       };
       if (e.kind === Kind.Whisperer && !e.fake) y += emerge(0.55, 0.65);

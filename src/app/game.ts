@@ -76,8 +76,9 @@ export class Game {
   private statsT = 0;
   /** Индекс следующей части ночи, которая начнётся после рассветной сцены (или −1). */
   private chainNext = -1;
+  private recedeFrom = 0;
   /** Постановка рассветной сцены: что показываем и сколько она уже идёт. */
-  private stage: { kind: 'boat' | 'flood' | 'loop' | 'name' | null; t: number; step: number } = { kind: null, t: 0, step: -1 };
+  private stage: { kind: 'boat' | 'flood' | 'loop' | 'name' | 'recede' | null; t: number; step: number } = { kind: null, t: 0, step: -1 };
   private readonly installer = new Installer();
   private installCard!: InstallCard;
   /** Предложение установки показывается не чаще раза за запуск и не сразу. */
@@ -310,6 +311,11 @@ export class Game {
       r.flashlightOn = true;
       r.yard12Sink = shot >= 1 ? 1 : 0;
       for (let i = 0; i < w.houseLight.length; i++) if (shot >= 1) w.houseLight[i] = false;
+    } else if (st.kind === 'recede') {
+      // вода уходит — и показывается то, что было на дне: конёк крыши двенадцатого двора
+      const target = this.world.cfg.night.dawnRecede ?? water.level;
+      water.level = this.recedeFrom + (target - this.recedeFrom) * ease(Math.min(1, st.t / 8));
+      r.sunkenYard = true;
     } else if (st.kind === 'flood') {
       // вода идёт вниз по Щели и встаёт в деревне по окна
       water.level = -2.8 + 3.7 * ease(Math.min(1, st.t / 7.5));
@@ -385,6 +391,7 @@ export class Game {
     this.renderer.fade = 0;
     this.renderer.hurt = 0;
     this.amb.setRadio(!NIGHTS[this.nightIdx]!.noRadio);
+    this.audio.underwater(false);
     void enterImmersive();
     this.renderer.setNight(NIGHTS[this.nightIdx]!);
     if (!this.introSeen.has(this.nightIdx)) {
@@ -676,7 +683,9 @@ export class Game {
           const id = end.flag.replace('end:', '');
           if (!this.progress.endings.includes(id)) this.progress.endings.push(id);
         }
-        this.stage = { kind: night.child ? 'boat' : ((end?.flag.replace('end:', '') ?? null) as typeof this.stage.kind), t: 0, step: -1 };
+        this.stage = { kind: night.child ? 'boat' : night.dawnRecede !== undefined ? 'recede' : ((end?.flag.replace('end:', '') ?? null) as typeof this.stage.kind), t: 0, step: -1 };
+        this.recedeFrom = water.level;
+        this.audio.underwater(false);
         const nextPart = night.next ? NIGHTS.findIndex((n) => n.id === night.next) : -1;
         this.chainNext = nextPart;
         // рассвет открывает следующую ночь (но не часть той же самой)

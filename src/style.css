@@ -633,3 +633,7 @@ button {
   will-change: transform, filter;
 }
 .scare-face canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.hud-breath .hud-air-label { color: var(--phos); }
+.hud-breath .bar-fill { background: var(--phos); }
+.hud-breath.low .hud-air-label { color: var(--red); animation: blink 0.4s steps(2) infinite; }

@@ -28,6 +28,7 @@ uniform vec3 uShadowTint;
 uniform vec3 uHiTint;
 uniform float uGrade;
 uniform float uBloom;
+uniform float uReflect;
 varying vec2 vUv;
 
 // «дешёвое свечение»: 8 выборок вокруг пикселя, берём только то, что ярче порога
@@ -50,6 +51,11 @@ vec3 toSRGB(vec3 c){ return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.0
 
 void main() {
   vec2 uv = vUv;
+  // отражение: взгляд «проваливается» в воду — картинка переворачивается и идёт рябью
+  float rf = uReflect;
+  if (rf > 0.5) uv.y = 1.0 - uv.y;
+  uv.x += (sin(uv.y * 38.0 + uTime * 2.2) * 0.006 + sin(uv.y * 91.0 - uTime * 3.1) * 0.002) * rf;
+  uv.y += sin(uv.x * 25.0 + uTime * 1.7) * 0.004 * rf;
   float tf = floor(uTime * 14.0);
   // разрывы ленты: горизонтальные полосы со сдвигом
   float row = floor(uv.y * uRes.y / 3.0);
@@ -83,8 +89,11 @@ void main() {
   col = mix(col, vec3(l * 1.3, l * 0.12, l * 0.1), uHurt * 0.55);
   col += uFlash * vec3(1.0, 0.93, 0.82);
 
+  // под водой: холодно-зелёное, тусклое; в момент перехода — почти темнота
+  col = mix(col, col * vec3(0.5, 0.82, 0.88) + vec3(0.0, 0.015, 0.025), rf);
+  col *= 1.0 - 0.85 * (1.0 - abs(rf * 2.0 - 1.0));
   vec2 q = vUv - 0.5;
-  float vig = 1.0 - dot(q, q) * (1.15 + uSanity * 1.0 + uHurt * 1.2);
+  float vig = 1.0 - dot(q, q) * (1.15 + uSanity * 1.0 + uHurt * 1.2 + rf * 1.6);
   col *= clamp(vig, 0.0, 1.0);
 
   col = toSRGB(clamp(col, 0.0, 1.0));
@@ -122,6 +131,7 @@ export class PostPass {
     uHiTint: { value: new THREE.Vector3(1.07, 0.98, 0.84) },
     uGrade: { value: 0 },
     uBloom: { value: 0.9 },
+    uReflect: { value: 0 },
   };
 
   constructor() {

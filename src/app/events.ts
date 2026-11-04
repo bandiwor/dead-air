@@ -429,6 +429,26 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
       r.hurt = Math.min(1, r.hurt + 0.25);
       vibrate(40);
       break;
+    case 'reflect':
+      // взгляд уходит под воду: всё глохнет, слышно собственное сердце
+      audio.underwater(e.a === 1);
+      if (e.a === 1) {
+        audio.play('splash', { vol: 0.25, rate: 0.7, low: true });
+        audio.play('heartbeat', { vol: 0.5, rate: 0.9 });
+      }
+      break;
+    case 'reflectFigure':
+      // в отражении за спиной — шёпот совсем близко, но не громче сердца
+      audio.play('whisper', { x: e.x, z: e.z, vol: 0.45, rate: 0.8, reverb: 0.2 });
+      break;
+    case 'overstay':
+      audio.underwater(false);
+      audio.play('splash', { vol: 1, rate: 0.6, reverb: 0.4 });
+      audio.play('sting', { vol: 0.5, rate: 0.7 });
+      r.glitch = 1;
+      r.addTrauma(0.5);
+      vibrate([60, 40, 120]);
+      break;
     case 'houseLight':
       audio.play('dryfire', { vol: 0.3, rate: 0.6 });
       break;

@@ -6,7 +6,7 @@ import type { StrKey } from '../i18n';
  */
 
 export type SpawnAt = 'doorOut' | 'inside' | 'pierWater' | 'behind' | 'crevice' | 'forest';
-export type AppearAt = 'pier' | 'behind' | 'pole' | 'window' | 'water' | 'corner' | 'choir';
+export type AppearAt = 'pier' | 'behind' | 'pole' | 'window' | 'water' | 'corner' | 'choir' | 'procession';
 export type ScareId = 'jumpscare' | 'scratch' | 'duck' | 'knockBack' | 'turn' | 'names' | 'speaker' | 'wet';
 
 export type Effect =
@@ -68,7 +68,7 @@ export interface HouseScript {
   knock: Effect[];
 }
 
-export type Anchor = 'pierEnd' | 'pierStart' | 'hutSide' | 'hutDoorSide' | { house: number; x: number; z: number } | { x: number; z: number };
+export type Anchor = 'pierEnd' | 'pierStart' | 'hutSide' | 'hutDoorSide' | { house: number; x: number; z: number } | { x: number; z: number } | { door: number };
 
 /** Особое действие ночи: рубильник, позвать с пристани, посмотреть в воду, взять лампу… */
 export interface ExtraDef {
@@ -83,6 +83,8 @@ export interface ExtraDef {
   once: boolean;
   /** Показывать искру-подсказку. */
   glint?: boolean;
+  /** Видно и доступно только в отражении (когда смотришь в воду). */
+  reflect?: boolean;
   effects: Effect[];
 }
 

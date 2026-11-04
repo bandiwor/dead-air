@@ -5,7 +5,7 @@ import { Kind } from '../content/enemies';
 import { TRAIL_SIZE, type World } from './world';
 import type { InputFrame } from './types';
 import { fireWeapon, throwDynamite } from './combat';
-import { updateInteract } from './interact';
+import { setReflect, updateInteract } from './interact';
 
 export const PLAYER_R = 0.38;
 const SPEED = 4.7;
@@ -219,6 +219,18 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   // --- голос: крик-сонар (третья ночь) ---
   p.voiceCd = Math.max(0, p.voiceCd - dt);
   if (inp.voice && w.cfg.night.voice && p.voiceCd <= 0) shout(w);
+
+  // --- вдох: смотреть в воду можно не дольше одного вдоха ---
+  if (w.reflecting) {
+    p.breath = Math.max(0, p.breath - dt / 3.2);
+    if (p.breath <= 0) {
+      // задержались — вода смотрит в ответ
+      setReflect(w, false);
+      w.emit('overstay', p.x, p.y, p.z);
+      const ov = w.cfg.night.reflect?.overstay;
+      if (ov) w.narrative.run(ov);
+    }
+  } else p.breath = Math.min(1, p.breath + dt / 5);
 
   // --- фонарь садится ---
   if (w.cfg.night.battery) p.battery = Math.max(0, p.battery - dt / 210);

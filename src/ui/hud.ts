@@ -25,6 +25,8 @@ export class Hud {
   private readonly goalMarker: { el: HTMLElement; label: HTMLElement };
   private readonly objective: HTMLElement;
   private readonly letters: HTMLElement;
+  private readonly breath: HTMLElement;
+  private readonly breathFill: HTMLElement;
   private readonly br: HTMLElement;
   readonly buttons: HTMLElement;
   readonly pauseBtn: HTMLElement;
@@ -50,6 +52,11 @@ export class Hud {
     this.airLabel = h('span', 'hud-air-label', t('hud.air'), this.air);
     const bar = h('div', 'bar', undefined, this.air);
     this.airFill = h('div', 'bar-fill', undefined, bar);
+    // вдох: виден, пока смотрите в воду или пока он не восстановился
+    this.breath = h('div', 'hud-air hud-breath hidden', undefined, tl);
+    h('span', 'hud-air-label', t('hud.breath'), this.breath);
+    const bb = h('div', 'bar', undefined, this.breath);
+    this.breathFill = h('div', 'bar-fill', undefined, bb);
 
     this.pauseBtn = h('button', 'btn-pause', 'II', this.root);
     input.bindButton(this.pauseBtn, 'pause');
@@ -222,7 +229,17 @@ export class Hud {
 
     // подсказка действия: бобина или объект в фокусе
     const focus = p.focus >= 0 ? w.interactables[p.focus] : undefined;
-    show(this.prompt, p.canReel || !!focus);
+    show(this.prompt, p.canReel || !!focus || w.canReflect);
+    show(this.breath, !!night.reflect && (w.reflecting || p.breath < 0.999));
+    if (night.reflect) {
+      this.breathFill.style.transform = `scaleX(${p.breath.toFixed(3)})`;
+      this.breath.classList.toggle('low', p.breath < 0.35);
+    }
+    if (!p.canReel && !focus && w.canReflect) {
+      this.set(this.promptLabel, t('prompt.reflect'));
+      this.promptFill.style.transform = 'scaleX(0)';
+      this.prompt.classList.remove('rule');
+    }
     if (p.canReel) {
       this.set(this.promptLabel, touch ? t('prompt.reel') : t('prompt.reelKb'));
       this.promptFill.style.transform = `scaleX(${p.reel.toFixed(3)})`;
