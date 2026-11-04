@@ -4,8 +4,8 @@ import { isStrKey } from '../src/i18n';
 
 describe('доска записок', () => {
   it('по главе на каждую ночь из меню, в каждой — записки', () => {
-    expect(NOTE_BOOK.length).toBe(3);
-    for (const ch of NOTE_BOOK) expect(ch.notes.length, ch.title).toBeGreaterThan(3);
+    expect(NOTE_BOOK.length).toBe(4);
+    for (const ch of NOTE_BOOK) expect(ch.notes.length, ch.title).toBeGreaterThan(1);
     expect(NOTE_TOTAL).toBe(NOTE_BOOK.reduce((a, c) => a + c.notes.length, 0));
   });
 

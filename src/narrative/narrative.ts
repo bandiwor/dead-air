@@ -105,6 +105,10 @@ export class Narrative {
       if (e.scare === 'jumpscare') w.jumpscare();
       else if (e.scare === 'turn') {
         for (const en of w.enemies) if (en.active && en.kind === Kind.Apparition && en.state === 1) en.state = 3;
+      } else if (e.scare === 'knockHut') {
+        // стучат в дверь радиоузла — к вам
+        const d = w.layout.hutDoor;
+        w.emit('scare', d.x, 1, d.z, -1, 0, 0, 'knockBack');
       } else if (e.scare === 'steps') {
         // шаги — из-за спины игрока, а не от столба
         const a = p.yaw + Math.PI;
@@ -223,6 +227,29 @@ export class Narrative {
         if (e) e.delay = 3;
       }
       w.flags.add('witnesses');
+    } else if (at === 'villagers') {
+      // одиннадцать дворов вышли из домов: у каждой двери — по фигуре, остальные — у столба
+      for (const h of w.layout.houses) {
+        const d = doorOf(h, 1.7);
+        const e = spawnEnemy(w, Kind.Apparition, d.x, d.z);
+        if (e) {
+          e.state = 1;
+          e.tx = 9999;
+          e.yaw = Math.atan2(w.layout.pole.z - d.z, w.layout.pole.x - d.x);
+        }
+      }
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + 0.6;
+        const x = w.layout.pole.x + Math.cos(a) * 4.4;
+        const z = w.layout.pole.z + Math.sin(a) * 4.4;
+        const e = spawnEnemy(w, Kind.Apparition, x, z);
+        if (e) {
+          e.state = 1;
+          e.tx = 9999;
+          e.yaw = a + Math.PI;
+        }
+      }
+      w.flags.add('villagers');
     } else if (at === 'boy') {
       // мальчик поднимается из ила посреди сухого пруда и показывает на развалины
       const e = spawnEnemy(w, Kind.Apparition, WORLD.pond.x + 2, WORLD.pond.z + 2);

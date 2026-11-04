@@ -22,6 +22,9 @@ function fromEffects(list: readonly Effect[], kind: NoteKind, out: NoteEntry[]):
   for (const e of list) if ('note' in e) out.push({ key: e.note, kind });
 }
 
+/** Записка живёт в той главе, где встретилась впервые («Опять» повторяет дома первой ночи). */
+const placed = new Set<string>();
+
 function chapterOf(title: StrKey): NoteEntry[] {
   const out: NoteEntry[] = [];
   // части одной ночи (Весна и Щель) — одна глава
@@ -35,9 +38,8 @@ function chapterOf(title: StrKey): NoteEntry[] {
     }
     for (const x of n.extras) fromEffects(x.effects, x.reflect ? 'water' : 'find', out);
   }
-  // без повторов: одна и та же записка может встречаться в нескольких местах
-  const seen = new Set<string>();
-  return out.filter((e) => (seen.has(e.key) ? false : (seen.add(e.key), true)));
+  // без повторов: одна и та же записка может встречаться в нескольких местах и ночах
+  return out.filter((e) => (placed.has(e.key) ? false : (placed.add(e.key), true)));
 }
 
 export const NOTE_BOOK: readonly NoteChapter[] = MENU_NIGHTS.map((n) => ({ title: n.titleKey, notes: chapterOf(n.titleKey) }));

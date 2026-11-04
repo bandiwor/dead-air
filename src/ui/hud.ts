@@ -205,7 +205,8 @@ export class Hud {
     show(this.air, !!night.battery || (!night.noRadio && !night.child));
     this.airFill.style.transform = `scaleX(${level.toFixed(3)})`;
     // ребёнок не носит оружия; крик — только там, где он есть
-    const armed = !night.child;
+    // ребёнок не носит оружия; в тихой ночи оружия нет вовсе
+    const armed = !night.child && p.owned.some(Boolean);
     show(this.br, armed);
     this.buttons.classList.toggle('unarmed', !armed);
     // та же кнопка: у ребёнка — прикрыть лампу, в «Щели» — крикнуть

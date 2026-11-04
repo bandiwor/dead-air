@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { World } from '../sim/world';
-import { MENU_NIGHTS, NIGHTS } from '../content/nights';
+import { MENU_NIGHTS, NIGHTS, resolveNight } from '../content/nights';
 import type { NightDef } from '../content/night';
 import { emptyInput } from '../sim/types';
 import { hashString } from '../core/rng';
@@ -383,6 +383,8 @@ export class Game {
 
   startNight(): void {
     if (!this.renderer) return;
+    // ночь с развилкой: играем тот вариант, к которому привела последняя концовка
+    this.nightIdx = resolveNight(this.nightIdx, this.progress.lastEnding);
     this.attempt++;
     this.world = this.makeWorld();
     this.ach.resetNight();
@@ -688,6 +690,7 @@ export class Game {
           sub = end.sub;
           const id = end.flag.replace('end:', '');
           if (!this.progress.endings.includes(id)) this.progress.endings.push(id);
+          this.progress.lastEnding = id;
         }
         this.stage = { kind: night.child ? 'boat' : night.dawnRecede !== undefined ? 'recede' : ((end?.flag.replace('end:', '') ?? null) as typeof this.stage.kind), t: 0, step: -1 };
         this.recedeFrom = water.level;

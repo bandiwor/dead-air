@@ -6,8 +6,8 @@ import type { StrKey } from '../i18n';
  */
 
 export type SpawnAt = 'doorOut' | 'inside' | 'pierWater' | 'behind' | 'crevice' | 'forest';
-export type AppearAt = 'pier' | 'behind' | 'pole' | 'window' | 'water' | 'corner' | 'choir' | 'procession' | 'witnesses' | 'boy';
-export type ScareId = 'jumpscare' | 'scratch' | 'duck' | 'knockBack' | 'turn' | 'names' | 'speaker' | 'wet' | 'steps';
+export type AppearAt = 'pier' | 'behind' | 'pole' | 'window' | 'water' | 'corner' | 'choir' | 'procession' | 'witnesses' | 'boy' | 'villagers';
+export type ScareId = 'jumpscare' | 'scratch' | 'duck' | 'knockBack' | 'turn' | 'names' | 'speaker' | 'wet' | 'steps' | 'knockHut';
 
 export type Effect =
   | { line: StrKey; style?: number }

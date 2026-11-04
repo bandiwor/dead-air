@@ -83,6 +83,8 @@ export interface Progress {
   items: string[];
   /** Какие записки игрок когда-либо прочитал (ключи текстов) — для доски записок. */
   notes: string[];
+  /** Чем кончилась последняя ночь с выбором — от этого зависит следующая. */
+  lastEnding: string;
 }
 
 const PKEY = 'dead-air:progress';
@@ -95,9 +97,10 @@ export function loadProgress(): Progress {
     const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && /^[a-z0-9_:]{1,32}$/.test(x)).slice(0, 64) : []);
     // ключи записок: «note.» + буквы/цифры — ничего лишнего из хранилища в интерфейс не попадёт
     const notes = Array.isArray(o.notes) ? o.notes.filter((x): x is string => typeof x === 'string' && /^note\.[A-Za-z0-9_]{1,40}$/.test(x)).slice(0, 200) : [];
-    return { unlocked, seen, ach: ids(o.ach), endings: ids(o.endings), items: ids(o.items), notes };
+    const lastEnding = typeof o.lastEnding === 'string' && /^[a-z]{1,16}$/.test(o.lastEnding) ? o.lastEnding : '';
+    return { unlocked, seen, ach: ids(o.ach), endings: ids(o.endings), items: ids(o.items), notes, lastEnding };
   } catch {
-    return { unlocked: 1, seen: [], ach: [], endings: [], items: [], notes: [] };
+    return { unlocked: 1, seen: [], ach: [], endings: [], items: [], notes: [], lastEnding: '' };
   }
 }
 
@@ -109,6 +112,7 @@ export function resetProgress(p: Progress): void {
   p.endings.length = 0;
   p.items.length = 0;
   p.notes.length = 0;
+  p.lastEnding = '';
   saveProgress(p);
 }
 
