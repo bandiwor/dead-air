@@ -558,6 +558,51 @@ export const RECIPES: Record<ProcSoundId, Recipe> = {
       scr.gain.exponentialRampToValueAtTime(0.0001, 1.2);
     },
   },
+  /**
+   * Визг скримера — как в классических скримерах: высокий, режущий. Основной тон ~1–1.5 кГц и ползёт
+   * вверх, несколько голосов вразнобой (не один чистый тон, а «толпа» в одном горле), быстрое неровное
+   * вибрато, перегруз и подъём в 2.5–4 кГц — там ухо чувствительнее всего, поэтому звук «пронзает».
+   * Начало — за 2 мс, без вдоха. В конце голос срывается и ломается вниз.
+   */
+  shriek: {
+    dur: () => 1.6,
+    build: (c, o, r, d) => {
+      const amp = gain(c, 0.0001);
+      // пронзительность: убрать низ, поднять 3 кГц, перегрузить, ещё раз срезать грязь сверху
+      chain(amp, filter(c, 'highpass', 600), filter(c, 'peaking', 3100, 1.2, 9), saturator(c, 9), filter(c, 'lowpass', 9000), gain(c, 0.55), o);
+      const base = r.range(1050, 1250);
+      const voices = [1, 1.012, 0.988, 1.5, 2.02];
+      voices.forEach((m, i) => {
+        const f0 = base * m;
+        const so = osc(c, i < 3 ? 'sawtooth' : 'square', f0, 0, d);
+        // вскрик вверх → держит → срывается вниз
+        so.frequency.setValueAtTime(f0 * 0.82, 0);
+        so.frequency.exponentialRampToValueAtTime(f0 * 1.18, 0.09);
+        so.frequency.linearRampToValueAtTime(f0 * 1.3, 0.9);
+        so.frequency.exponentialRampToValueAtTime(f0 * 0.7, d - 0.05);
+        // неровное вибрато: два генератора — голос «дрожит», а не поёт
+        for (const [rate, depth] of [[r.range(7, 9), 0.035], [r.range(13, 19), 0.018]] as const) {
+          const vib = osc(c, 'sine', rate, 0, d);
+          const vg = gain(c, f0 * depth);
+          chain(vib, vg);
+          vg.connect(so.frequency);
+        }
+        chain(so, gain(c, i < 3 ? 0.32 : 0.12), amp);
+      });
+      // хрип: шум в полосе 2–6 кГц, дышит вместе с криком
+      const br = gain(c, 0.0001);
+      chain(noise(c, r, d), filter(c, 'bandpass', 3600, 0.8), br, o);
+      br.gain.setValueAtTime(0.0001, 0);
+      br.gain.linearRampToValueAtTime(0.4, 0.004);
+      br.gain.exponentialRampToValueAtTime(0.12, 0.6);
+      br.gain.exponentialRampToValueAtTime(0.0001, d);
+      // огибающая: удар сразу, держит на пределе, обрывается
+      amp.gain.setValueAtTime(0.0001, 0);
+      amp.gain.linearRampToValueAtTime(1, 0.002);
+      amp.gain.setValueAtTime(1, d - 0.45);
+      amp.gain.exponentialRampToValueAtTime(0.0001, d);
+    },
+  },
   swell: {
     dur: () => 1.7,
     build: (c, o, r) => {

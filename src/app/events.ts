@@ -506,11 +506,12 @@ function scare(e: SimEvent, w: World, c: EventCtx): void {
       c.onJumpscare();
       audio.duck(2.2);
       const v = 0.6 + 0.5 * c.scare;
-      audio.play('shock', { vol: v, bus: 'ui', reverb: 0 });
-      audio.play('scream', { vol: 0.5 + 0.5 * c.scare, bus: 'ui', reverb: 0.05, rate: 1.08 });
-      // второй удар — через 0.72 с, когда игрок уже выдохнул
-      audio.play('shock', { vol: v * 1.1, bus: 'ui', reverb: 0.1, delay: 0.72, rate: 0.85 });
-      audio.play('scream', { vol: 0.55 + 0.5 * c.scare, bus: 'ui', delay: 0.72, rate: 0.82 });
+      // визг — главный: высокий, режущий, как в классических скримерах; удар под ним — «в грудь»
+      audio.play('shock', { vol: v * 0.7, bus: 'ui', reverb: 0 });
+      audio.play('shriek', { vol: 0.65 + 0.45 * c.scare, bus: 'ui', reverb: 0.05 });
+      // второй удар — через 0.72 с, когда игрок уже выдохнул: визг выше и ближе
+      audio.play('shock', { vol: v * 0.8, bus: 'ui', reverb: 0.1, delay: 0.72, rate: 0.85 });
+      audio.play('shriek', { vol: 0.7 + 0.45 * c.scare, bus: 'ui', reverb: 0.1, delay: 0.72, rate: 1.12 });
       r.glitch = 1;
       r.addTrauma(1);
       vibrate([160, 30, 40, 400, 200]);
