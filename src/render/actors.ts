@@ -2,7 +2,7 @@ import { dampAngle } from '../core/math';
 import * as THREE from 'three';
 import { Kind } from '../content/enemies';
 import type { World } from '../sim/world';
-import { WORLD, heightAt } from '../proc/terrain';
+import { heightAt } from '../proc/terrain';
 import type { TextureSet } from './textures';
 import { creature } from './materials';
 import { WEAPONS } from '../content/weapons';
@@ -177,10 +177,22 @@ export class ActorsView {
       let rim = dist < 10 ? (1 - dist / 10) * 0.9 : 0;
       let lean = 0;
       let glitch = e.fake ? 0.05 : 0;
+      let flash = e.flash;
       if (e.kind === Kind.Whisperer) {
         stride = 3.4;
         amp = Math.min(0.9, sp / 3);
-        lean = e.litTorch ? -0.15 : 0;
+        if (e.burn > 0) {
+          // горит: мечется, лапы молотят, тело обугливается (отрицательная «вспышка» в шейдере)
+          stride = 5.5;
+          amp = 1;
+          flash = -Math.min(1, 0.45 + e.burn * 0.3);
+        } else if (e.litTorch) {
+          // в луче ему больно: вздрагивает, пятится, вжимает голову — поэтому и ползёт медленнее
+          lean = -0.32 - Math.sin(this.time * 31 + e.id) * 0.05;
+          glitch = Math.max(glitch, 0.14);
+          amp = Math.max(amp, 0.35);
+          stride = 6;
+        }
       } else if (e.kind === Kind.Mute) {
         stride = 1.4;
         amp = Math.min(0.5, sp / 3);
@@ -220,9 +232,25 @@ export class ActorsView {
       }
       ph += sp * dt * stride;
       this.phases.set(e.id, ph);
-      const y = e.y + (e.kind === Kind.Whisperer && e.y < WORLD.waterLevel ? 0 : 0);
+      // выход из земли/воды: тело поднимается снизу, у каждого своя скорость
+      let y = e.y;
+      const emerge = (secs: number, depth: number): number => {
+        const k = Math.min(1, e.age / secs);
+        return -(1 - k * k * (3 - 2 * k)) * depth;
+      };
+      if (e.kind === Kind.Whisperer && !e.fake) y += emerge(0.55, 0.65);
+      else if (e.kind === Kind.Mute) {
+        y += emerge(1.3, 2.7);
+        if (e.age < 1.3) lean = Math.max(lean, 0.4 * (1 - e.age / 1.3));
+      } else if (e.kind === Kind.Unseeing) y += emerge(1.0, 1.9);
+      else if (e.kind === Kind.Choir) y += emerge(2.2, 3.4);
+      else if (e.kind === Kind.Echo && e.age < 0.6) {
+        // собирается из следов: сначала рябь и полупрозрачность
+        glitch = Math.max(glitch, 1 - e.age / 0.6);
+        fade *= e.age / 0.6;
+      }
       const scale = e.kind === Kind.Choir ? 0.75 + (e.hp / Math.max(1, e.maxHp)) * 0.45 : 1;
-      this.writeInstance(h, i, e.x, y, e.z, e.yaw, ph, amp, e.flash, fade, glitch, rim, lean, scale);
+      this.writeInstance(h, i, e.x, y, e.z, e.yaw, ph, amp, flash, fade, glitch, rim, lean, scale);
       // Отголосок держит то же оружие, что держали вы
       if (e.kind === Kind.Echo) {
         const wi = Math.round(e.tx);

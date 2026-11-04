@@ -496,6 +496,161 @@ export class Fx {
     ring.mesh.visible = true;
   }
 
+  // ================================================================ существа
+  // Каждое появление и каждая смерть — про то, чем существо является (docs/GDD.md §7).
+
+  /** Шептун выползает из-под земли: комья земли и пыль. */
+  emergeDirt(x: number, z: number, big: boolean): void {
+    const r = this.rng;
+    const y = heightAt(x, z);
+    const n = big ? 26 : 8;
+    for (let i = 0; i < n; i++) {
+      const a = r.range(0, Math.PI * 2);
+      const sp = r.range(0.6, big ? 5 : 2.4);
+      this.debris.spawn(x + Math.cos(a) * 0.3, y + 0.1, z + Math.sin(a) * 0.3, Math.cos(a) * sp, r.range(2, big ? 9 : 5), Math.sin(a) * sp, r.range(0.04, big ? 0.22 : 0.09), r.chance(0.5) ? 0x3a2e22 : 0x2a221a, r.range(4, 9), r);
+    }
+    for (let i = 0; i < (big ? 30 : 8); i++) {
+      const a = r.range(0, Math.PI * 2);
+      const sp = r.range(0.5, big ? 4 : 1.6);
+      this.norm.spawn(x, y + 0.2, z, Math.cos(a) * sp, r.range(0.2, 1.4), Math.sin(a) * sp, r.range(0.8, big ? 1.8 : 1.1), r.range(0.2, big ? 0.6 : 0.35), 0.13, 0.11, 0.09, 0.3, 0.7, -0.1, 1.6);
+    }
+    if (big) this.decals.add(x, z, r.range(1.6, 2.2), 0x120e0a, r.range(0, 6));
+  }
+
+  /** Отголосок собирается из фосфорных следов: искры стягиваются к нему. */
+  assemble(x: number, y: number, z: number): void {
+    const r = this.rng;
+    for (let i = 0; i < 36; i++) {
+      const a = r.range(0, Math.PI * 2);
+      const d = r.range(1.2, 2.6);
+      const h = r.range(0.1, 1.8);
+      const life = r.range(0.35, 0.6);
+      this.add.spawn(x + Math.cos(a) * d, y + h, z + Math.sin(a) * d, (-Math.cos(a) * d) / life, 0, (-Math.sin(a) * d) / life, life, r.range(0.05, 0.12), 0.3, 1.0, 0.85, 1, -0.6, 0, 0);
+    }
+  }
+
+  /** Невидевший поднимается из ила/воды: брызги, грязь, стекающая вода. */
+  emergeWet(x: number, y: number, z: number): void {
+    const r = this.rng;
+    for (let i = 0; i < 22; i++) {
+      const a = r.range(0, Math.PI * 2);
+      const sp = r.range(0.5, 2.5);
+      this.norm.spawn(x, y + 0.2, z, Math.cos(a) * sp, r.range(2, 5), Math.sin(a) * sp, r.range(0.4, 0.9), r.range(0.05, 0.12), 0.22, 0.28, 0.3, 0.9, 0, 16, 0.3);
+    }
+    this.decals.add(x, z, r.range(0.8, 1.2), 0x0c1416, r.range(0, 6));
+  }
+
+  /** Горящий шептун: языки огня, искры, чёрный дым. k — сила огня 0..1. */
+  burning(x: number, y: number, z: number, k: number): void {
+    const r = this.rng;
+    if (r.chance(0.9)) this.add.spawn(x + r.range(-0.3, 0.3), y + r.range(0.3, 0.7), z + r.range(-0.3, 0.3), r.range(-0.3, 0.3), r.range(1.2, 2.6), r.range(-0.3, 0.3), r.range(0.25, 0.5), r.range(0.12, 0.26) * (0.6 + k * 0.6), 1.9, r.range(0.6, 0.9), 0.2, 1, -0.6, -1.5, 1.4);
+    if (r.chance(0.35)) this.add.spawn(x, y + 0.5, z, r.range(-1.5, 1.5), r.range(2, 5), r.range(-1.5, 1.5), r.range(0.5, 1.1), r.range(0.03, 0.05), 2, 1.1, 0.4, 1, 0, -2, 0.5);
+    if (r.chance(0.4)) this.norm.spawn(x, y + 0.9, z, r.range(-0.2, 0.2), r.range(0.8, 1.6), r.range(-0.2, 0.2), r.range(1, 1.8), r.range(0.15, 0.3), 0.04, 0.035, 0.03, 0.55, 1.2, -0.2, 0.8);
+  }
+
+  /** Шептун в луче фонаря: бледный дымок с кожи — свет его жжёт, как сказанное вслух. */
+  wisps(x: number, y: number, z: number): void {
+    const r = this.rng;
+    this.norm.spawn(x + r.range(-0.25, 0.25), y + r.range(0.4, 0.75), z + r.range(-0.25, 0.25), r.range(-0.2, 0.2), r.range(0.5, 1.1), r.range(-0.2, 0.2), r.range(0.6, 1.1), r.range(0.06, 0.14), 0.55, 0.55, 0.5, 0.35, 1.4, -0.3, 1);
+  }
+
+  /** Немой: пыль из-под ног. */
+  dust(x: number, z: number): void {
+    const r = this.rng;
+    const y = heightAt(x, z);
+    for (let i = 0; i < 2; i++) this.norm.spawn(x + r.range(-0.5, 0.5), y + 0.1, z + r.range(-0.5, 0.5), r.range(-0.6, 0.6), r.range(0.1, 0.5), r.range(-0.6, 0.6), r.range(0.6, 1.1), r.range(0.15, 0.3), 0.13, 0.12, 0.1, 0.25, 0.6, 0, 1.5);
+  }
+
+  /** Невидевший: с него течёт вода. */
+  drips(x: number, y: number, z: number): void {
+    const r = this.rng;
+    this.norm.spawn(x + r.range(-0.25, 0.25), y + r.range(0.8, 1.6), z + r.range(-0.2, 0.2), 0, -0.3, 0, r.range(0.3, 0.5), r.range(0.025, 0.045), 0.35, 0.45, 0.5, 0.8, 0, 9, 0);
+  }
+
+  /** Отголосок: за ним тянутся фосфорные кадры — вы видите своё прошлое движение. */
+  afterimage(x: number, y: number, z: number): void {
+    const r = this.rng;
+    this.add.spawn(x + r.range(-0.15, 0.15), y + r.range(0.3, 1.7), z + r.range(-0.15, 0.15), 0, 0.1, 0, r.range(0.4, 0.7), r.range(0.06, 0.1), 0.15, 0.55, 0.48, 1, -0.4, 0, 0);
+  }
+
+  /** Шептун умер: не кровь — недоговорённое слово рассыпается чёрными хлопьями, как сгоревшая бумага. */
+  crumble(x: number, y: number, z: number): void {
+    const r = this.rng;
+    for (let i = 0; i < 46; i++) {
+      const a = r.range(0, Math.PI * 2);
+      const sp = r.range(0.3, 2.2);
+      this.norm.spawn(x + r.range(-0.3, 0.3), y + r.range(0.3, 0.8), z + r.range(-0.3, 0.3), Math.cos(a) * sp, r.range(0.4, 2.4), Math.sin(a) * sp, r.range(1.2, 2.4), r.range(0.04, 0.09), 0.05, 0.045, 0.045, 1, -0.3, 0.6, 1.8);
+    }
+    // несколько бледных «букв» — светящиеся обрывки, тают в воздухе
+    for (let i = 0; i < 8; i++) this.add.spawn(x, y + 0.6, z, r.range(-0.8, 0.8), r.range(0.6, 1.8), r.range(-0.8, 0.8), r.range(0.8, 1.4), r.range(0.03, 0.06), 0.7, 0.7, 0.62, 1, 0, -0.2, 1.2);
+    for (let i = 0; i < 6; i++) this.debris.spawn(x, y + 0.4, z, r.range(-2, 2), r.range(1, 4), r.range(-2, 2), r.range(0.05, 0.12), 0x2a2622, r.range(6, 10), r);
+    this.decals.add(x, z, r.range(0.5, 0.8), 0x0a0908, r.range(0, 6));
+  }
+
+  /** Шептун сгорел: вспышка, угли, пепел, выжженное пятно. */
+  incinerate(x: number, y: number, z: number): void {
+    const r = this.rng;
+    this.flash(x, y + 0.8, z, 30, 0.35);
+    for (let i = 0; i < 30; i++) this.add.spawn(x, y + 0.4, z, r.range(-2.5, 2.5), r.range(1.5, 5), r.range(-2.5, 2.5), r.range(0.5, 1.3), r.range(0.03, 0.07), 2, r.range(0.6, 1), 0.25, 1, 0, 3, 0.8);
+    for (let i = 0; i < 24; i++) this.norm.spawn(x + r.range(-0.3, 0.3), y + 0.4, z + r.range(-0.3, 0.3), r.range(-0.5, 0.5), r.range(0.8, 2), r.range(-0.5, 0.5), r.range(1.6, 3), r.range(0.2, 0.5), 0.06, 0.055, 0.05, 0.6, 1.1, -0.15, 0.7);
+    for (let i = 0; i < 10; i++) this.debris.spawn(x, y + 0.3, z, r.range(-1.5, 1.5), r.range(1, 3), r.range(-1.5, 1.5), r.range(0.04, 0.1), r.chance(0.5) ? 0x141210 : 0x3a1a08, r.range(6, 12), r);
+    this.decals.add(x, z, r.range(0.9, 1.3), 0x060504, r.range(0, 6));
+  }
+
+  /** Немой — сама тишина, сжатая в камень: лопается на груду камней и облако пыли. */
+  shatter(x: number, y: number, z: number, explosive: boolean): void {
+    const r = this.rng;
+    const stones = [0x5a524a, 0x4a443e, 0x6a625a, 0x3a342e, 0x2e2a26];
+    const n = explosive ? 70 : 48;
+    for (let i = 0; i < n; i++) {
+      const a = r.range(0, Math.PI * 2);
+      const sp = explosive ? r.range(4, 12) : r.range(1.5, 6.5);
+      this.debris.spawn(x + r.range(-0.4, 0.4), y + r.range(0.5, 2.2), z + r.range(-0.4, 0.4), Math.cos(a) * sp, r.range(2, 9), Math.sin(a) * sp, r.range(0.06, 0.34), stones[i % stones.length]!, r.range(16, 26), r);
+    }
+    for (let i = 0; i < 40; i++) {
+      const a = r.range(0, Math.PI * 2);
+      const sp = r.range(0.8, 4);
+      this.norm.spawn(x, y + r.range(0.3, 2), z, Math.cos(a) * sp, r.range(0.2, 1.4), Math.sin(a) * sp, r.range(1.2, 2.2), r.range(0.25, 0.7), 0.14, 0.13, 0.12, 0.3, 0.7, -0.05, 1.4);
+    }
+    this.decals.add(x, z, r.range(1.6, 2.2), 0x161412, r.range(0, 6));
+  }
+
+  /** Отголосок: кадры прошлого разлетаются назад — туда, откуда вы шли. yaw — куда он смотрел. */
+  rewind(x: number, y: number, z: number, yaw: number): void {
+    const r = this.rng;
+    const bx = -Math.cos(yaw);
+    const bz = -Math.sin(yaw);
+    for (let i = 0; i < 70; i++) {
+      const sp = r.range(2, 9);
+      this.add.spawn(x + r.range(-0.2, 0.2), y + r.range(0.1, 1.8), z + r.range(-0.2, 0.2), bx * sp + r.range(-0.8, 0.8), r.range(-0.2, 0.4), bz * sp + r.range(-0.8, 0.8), r.range(0.3, 0.8), r.range(0.04, 0.12), 0.3, 1.1, 0.95, 1, -0.3, 0, 1.2);
+    }
+    this.flash(x, y + 1, z, 18, 0.25);
+  }
+
+  /** Невидевший возвращается в воду: тело рушится брызгами, остаётся лужа. */
+  splashDown(x: number, y: number, z: number): void {
+    const r = this.rng;
+    for (let i = 0; i < 60; i++) {
+      const a = r.range(0, Math.PI * 2);
+      const sp = r.range(0.5, 4);
+      this.norm.spawn(x + r.range(-0.2, 0.2), y + r.range(0.3, 1.7), z + r.range(-0.2, 0.2), Math.cos(a) * sp, r.range(0.5, 4), Math.sin(a) * sp, r.range(0.4, 0.9), r.range(0.04, 0.11), 0.3, 0.4, 0.45, 0.85, 0, 14, 0.4);
+    }
+    for (let i = 0; i < 6; i++) this.debris.spawn(x, y + 0.8, z, r.range(-2, 2), r.range(1, 3), r.range(-2, 2), r.range(0.06, 0.14), 0x6d7a7c, r.range(8, 14), r);
+    this.decals.add(x, z, r.range(1.2, 1.7), 0x0a1214, r.range(0, 6));
+  }
+
+  /** Хор распадается на одиннадцать тел. */
+  disband(x: number, y: number, z: number): void {
+    const r = this.rng;
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2 + r.range(-0.2, 0.2);
+      const sp = r.range(3, 6);
+      this.debris.spawn(x + Math.cos(a) * 0.6, y + r.range(1, 2), z + Math.sin(a) * 0.6, Math.cos(a) * sp, r.range(3, 6), Math.sin(a) * sp, r.range(0.35, 0.5), i % 2 ? 0x6f6a62 : 0x2e2a26, r.range(20, 30), r);
+    }
+    this.shatter(x, y, z, false);
+    this.vanish(x, y, z);
+  }
+
   flareSparks(x: number, y: number, z: number): void {
     const r = this.rng;
     this.add.spawn(x, y + 0.1, z, r.range(-1, 1), r.range(1.5, 4), r.range(-1, 1), r.range(0.3, 0.7), r.range(0.06, 0.13), 1.6, 1.3, 0.8, 1, 0, 6);

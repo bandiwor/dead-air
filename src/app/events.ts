@@ -64,12 +64,159 @@ export function handleEvents(w: World, c: EventCtx, dt: number): void {
     // помехи рядом с «неправильным»; фигура на пристани — тише, её нужно успеть рассмотреть
     if (e.kind === Kind.Echo || e.kind === Kind.Apparition) eerie = Math.max(eerie, (1 - d / 12) * (e.state === 1 ? 0.35 : 1));
   }
+  creatureAmbience(w, c, dt);
   const target = Math.max(0, eerie * 0.55, (0.35 - p.sanity / 100) * 0.9, w.deadAir ? 0.12 : 0);
   c.r.glitch = Math.max(target, c.r.glitch - dt * 1.8);
   nearestEnemy = near;
 }
 
 export let nearestEnemy = 99;
+
+/** Кто из шептунов уже под лучом (чтобы шипение звучало один раз на вход в свет). */
+const litBefore = new Set<number>();
+
+/**
+ * Живые эффекты существ, каждый кадр: огонь на горящих, дымок с шептунов в луче (свет им
+ * неприятен — как сказанное вслух), пыль за Немым, вода с Невидевших, фосфорный шлейф Отголоска.
+ */
+function creatureAmbience(w: World, c: EventCtx, dt: number): void {
+  const fx = c.r.fx;
+  const rnd = fx.rng;
+  for (const e of w.enemies) {
+    if (!e.active || e.fake) {
+      litBefore.delete(e.id);
+      continue;
+    }
+    const moving = Math.hypot(e.vx, e.vz) > 0.3;
+    switch (e.kind) {
+      case Kind.Whisperer: {
+        if (e.burn > 0) {
+          const n = Math.ceil(dt * 50);
+          for (let i = 0; i < n; i++) fx.burning(e.x, e.y, e.z, Math.min(1, e.burn));
+          if (rnd.chance(dt * 3)) c.audio.play('fuse', { x: e.x, z: e.z, vol: 0.35, rate: rnd.range(1.1, 1.5) });
+        } else if (e.litTorch) {
+          if (rnd.chance(dt * 24)) fx.wisps(e.x, e.y, e.z);
+          if (!litBefore.has(e.id)) {
+            litBefore.add(e.id);
+            // шипит и сжимается, как от ожога
+            c.audio.play('scratch', { x: e.x, z: e.z, vol: 0.55, rate: 1.7, reverb: 0.2 });
+          }
+        }
+        if (!e.litTorch) litBefore.delete(e.id);
+        break;
+      }
+      case Kind.Mute:
+        if (moving && rnd.chance(dt * 5)) fx.dust(e.x, e.z);
+        break;
+      case Kind.Unseeing:
+        if (rnd.chance(dt * (moving ? 10 : 4))) fx.drips(e.x, e.y, e.z);
+        break;
+      case Kind.Echo:
+        if (!e.delay && moving && rnd.chance(dt * 30)) fx.afterimage(e.x, e.y, e.z);
+        break;
+      case Kind.Choir:
+        if (rnd.chance(dt * 8)) fx.wisps(e.x + rnd.range(-0.8, 0.8), e.y + 1.2, e.z + rnd.range(-0.8, 0.8));
+        break;
+    }
+  }
+}
+
+/** Появление — у каждого своё и про то, откуда оно. */
+function birth(e: SimEvent, w: World, c: EventCtx): void {
+  const { audio, r } = c;
+  const p = w.player;
+  const dist = Math.hypot(e.x - p.x, e.z - p.z);
+  const wet = e.y < -0.5;
+  switch (e.a) {
+    case Kind.Whisperer:
+      // недоговорённое слово выкапывается из земли, куда его закопали
+      if (wet) audio.play('splash', { x: e.x, z: e.z, vol: 0.5 });
+      else {
+        r.fx.emergeDirt(e.x, e.z, false);
+        if (dist < 22) audio.play('scratch', { x: e.x, z: e.z, vol: 0.4, rate: 0.9 });
+      }
+      break;
+    case Kind.Mute:
+      // тишина проламывает землю снизу
+      r.fx.emergeDirt(e.x, e.z, true);
+      audio.play('growl', { x: e.x, z: e.z, vol: 0.9, rate: 0.6 });
+      audio.play('slam', { x: e.x, z: e.z, vol: 0.8, rate: 0.6, reverb: 0.5 });
+      if (dist < 25) r.addTrauma(0.25 * (1 - dist / 25));
+      break;
+    case Kind.Echo:
+      // собирается из ваших же следов
+      r.fx.assemble(e.x, e.y, e.z);
+      audio.play('static', { x: e.x, z: e.z, vol: 0.5, rate: 1.3 });
+      break;
+    case Kind.Unseeing:
+      // поднимается из пруда — или из ила, если вылез на берег
+      r.fx.emergeWet(e.x, e.y, e.z);
+      audio.play('splash', { x: e.x, z: e.z, vol: wet ? 0.8 : 0.5, rate: wet ? 1 : 0.8 });
+      break;
+    case Kind.Choir:
+      r.fx.emergeDirt(e.x, e.z, true);
+      audio.play('choir', { x: e.x, z: e.z, vol: 0.8, rate: 0.85, reverb: 0.7 });
+      r.addTrauma(0.3);
+      break;
+  }
+}
+
+/**
+ * Смерть — тоже у каждого своя. b: 1 — взрыв, 2 — сгорел.
+ *  • Шептун: недоговорённое слово рассыпается пеплом и чёрными хлопьями; сгоревший — угли и пятно.
+ *  • Немой: тишина лопается грудой камней — и на секунду становится по-настоящему тихо.
+ *  • Отголосок: кадры прошлого разлетаются назад по вашему пути, плёнку «зажёвывает».
+ *  • Невидевший: утопленник возвращается в воду — брызги и лужа.
+ *  • Хор: одиннадцать тел расходятся, песня захлёбывается.
+ */
+function death(e: SimEvent, c: EventCtx, dist: number): void {
+  const { audio, r } = c;
+  const explosive = e.b === 1;
+  switch (e.a) {
+    case Kind.Whisperer:
+      if (explosive) r.fx.gore(e.x, e.y, e.z, false, true, SKIN[e.a]!);
+      else if (e.b === 2) {
+        r.fx.incinerate(e.x, e.y, e.z);
+        audio.play('fuse', { x: e.x, z: e.z, vol: 0.8, rate: 0.8 });
+      } else r.fx.crumble(e.x, e.y, e.z);
+      // обрывок шёпота — на полуслове
+      audio.play('whisper', { x: e.x, z: e.z, vol: 0.6, rate: 1.25, reverb: 0.4 });
+      audio.play('death', { x: e.x, z: e.z, vol: 0.45, rate: 1.1 });
+      r.addTrauma(0.06);
+      break;
+    case Kind.Mute:
+      r.fx.shatter(e.x, e.y, e.z, explosive);
+      audio.play('explosion', { x: e.x, z: e.z, vol: 0.7, rate: 0.55, reverb: 0.5 });
+      audio.play('gore', { x: e.x, z: e.z, vol: 0.6, rate: 0.6 });
+      // после — тишина: мир глохнет на мгновение
+      audio.duck(1.4);
+      r.addTrauma(dist < 18 ? 0.45 : 0.2);
+      break;
+    case Kind.Echo:
+      r.fx.rewind(e.x, e.y, e.z, e.c);
+      audio.play('tapestop', { x: e.x, z: e.z, vol: 0.9, reverb: 0.5 });
+      audio.play('static', { x: e.x, z: e.z, vol: 0.6 });
+      r.glitch = Math.max(r.glitch, 0.8);
+      break;
+    case Kind.Unseeing:
+      if (explosive) r.fx.gore(e.x, e.y, e.z, false, true, SKIN[e.a]!);
+      r.fx.splashDown(e.x, e.y, e.z);
+      audio.play('splash', { x: e.x, z: e.z, vol: 1, rate: 0.75, reverb: 0.4 });
+      audio.play('death', { x: e.x, z: e.z, vol: 0.5, rate: 0.75 });
+      r.addTrauma(0.1);
+      break;
+    case Kind.Choir:
+      r.fx.disband(e.x, e.y, e.z);
+      audio.play('choir', { x: e.x, z: e.z, vol: 1.2, rate: 0.55, reverb: 0.8 });
+      audio.play('tapestop', { x: e.x, z: e.z, vol: 1, delay: 0.4 });
+      r.addTrauma(0.6);
+      r.glitch = 1;
+      break;
+    default:
+      r.fx.gore(e.x, e.y, e.z, false, explosive, SKIN[e.a] ?? 0x888888);
+      audio.play('death', { x: e.x, z: e.z, vol: 0.6 });
+  }
+}
 
 function handle(e: SimEvent, w: World, c: EventCtx): void {
   const { audio, r, hud } = c;
@@ -109,14 +256,15 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
       r.fx.impact(e.x, e.y, e.z, e.b / 4, e.c / 4, true);
       audio.play('hit', { x: e.x, z: e.z, vol: 0.8 });
       break;
-    case 'kill': {
-      const big = e.a === Kind.Mute;
-      r.fx.gore(e.x, e.y, e.z, big, e.b > 0, SKIN[e.a] ?? 0x888888);
-      audio.play('gore', { x: e.x, z: e.z, vol: big ? 1 : 0.8 });
-      audio.play('death', { x: e.x, z: e.z, vol: big ? 1 : 0.6, rate: big ? 0.6 : 1 });
-      r.addTrauma(big ? 0.35 : 0.08);
+    case 'kill':
+      death(e, c, dist);
       break;
-    }
+    case 'ignite':
+      // шептун вспыхнул: сухой треск, как от бумаги
+      audio.play('fuse', { x: e.x, z: e.z, vol: 0.7, rate: 1.3 });
+      audio.play('screech', { x: e.x, z: e.z, vol: 0.45, rate: 1.35 });
+      r.fx.flash(e.x, e.y, e.z, 14, 0.2);
+      break;
     case 'explosion': {
       r.fx.explosion(e.x, e.y, e.z, e.a);
       r.atmos.burst(e.x, e.y + 1.2, e.z, e.a * 4, 0xff9040, c.reduceFlashes ? 0.5 : 1, 0.7);
@@ -224,7 +372,7 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
       audio.play('splash', { x: e.x, z: e.z, vol: 0.8 });
       break;
     case 'spawn':
-      if (e.y < -0.5) audio.play('splash', { x: e.x, z: e.z, vol: 0.7 });
+      if (e.b !== 1) birth(e, w, c);
       break;
     case 'reelProgress':
       break;

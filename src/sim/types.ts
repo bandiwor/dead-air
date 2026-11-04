@@ -37,7 +37,7 @@ export type EvType =
   | 'reload' | 'dryfire' | 'swap' | 'pickup' | 'throw' | 'flareLand' | 'deadAir' | 'airRestored'
   | 'reelProgress' | 'line' | 'scare' | 'waveStart' | 'waveEnd' | 'dawn' | 'alert' | 'growl' | 'charge'
   | 'vanish' | 'bounce' | 'spawn' | 'splash' | 'note' | 'knock' | 'door' | 'houseLight' | 'fragment'
-  | 'shout' | 'letter' | 'choirPulse' | 'feed' | 'drown';
+  | 'shout' | 'letter' | 'choirPulse' | 'feed' | 'drown' | 'ignite';
 
 export interface SimEvent {
   type: EvType;
@@ -82,7 +82,10 @@ export class Enemy {
   tz = 0;
   avoid = 0;
   avoidSign = 1;
+  /** Сколько ещё секунд горит (шептуны — сухие, как бумага: загораются от ракеты и друг от друга). */
   burn = 0;
+  /** Секунд с появления — для анимации выхода (в отличие от t, никогда не сбрасывается). */
+  age = 0;
   stepAcc = 0;
   /** Для Отголоска: отставание по следу (в отсчётах). */
   delay = 0;

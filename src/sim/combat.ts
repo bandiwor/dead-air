@@ -155,7 +155,8 @@ export function killEnemy(w: World, e: Enemy, explosive: boolean): void {
     w.addFragment(e.x, e.y + 0.6, e.z);
     w.player.sanity = Math.max(0, w.player.sanity - 2);
   }
-  w.emit('kill', e.x, e.y, e.z, e.kind, explosive ? 1 : 0, e.yaw);
+  // b: 1 — разорван взрывом, 2 — сгорел, 0 — обычная смерть
+  w.emit('kill', e.x, e.y, e.z, e.kind, explosive ? 1 : e.burn > 0 ? 2 : 0, e.yaw);
   w.player.sanity = Math.min(100, w.player.sanity + 0.6);
   w.intensity = Math.min(1, w.intensity + 0.04);
 }

@@ -95,6 +95,7 @@ export function triplanar<T extends THREE.MeshLambertMaterial | THREE.MeshStanda
  * Один draw call на тип существа.
  *
  * instance-атрибуты:  iAnim = (фаза, частота, амплитуда, вспышка), iFx = (проявление, глитч, кайма, наклон)
+ * Вспышка < 0 — тело горит (−1…0): обугливается, по нему бегает огненный отблеск, его колотит.
  */
 export function creature<T extends THREE.Material>(mat: T, depth = false): T {
   mat.onBeforeCompile = (sh) => {
@@ -106,7 +107,8 @@ export function creature<T extends THREE.Material>(mat: T, depth = false): T {
          attribute vec4 aLimb; attribute float aLimbW;
          attribute vec4 iAnim; attribute vec4 iFx;
          uniform float uTime;
-         varying vec4 vCreatureFx;`,
+         varying vec4 vCreatureFx;
+         varying float vBurnY;`,
       )
       .replace(
         '#include <begin_vertex>',
@@ -127,12 +129,19 @@ export function creature<T extends THREE.Material>(mat: T, depth = false): T {
            float lean = iFx.w;
            transformed.z += transformed.y * sin(lean);
            transformed.y *= cos(lean);
+           float burnV = max(-iAnim.w, 0.0);
+           if (burnV > 0.0) {
+             // корчится в огне: быстрая мелкая дрожь, сильнее к краям тела
+             transformed.x += sin(uTime * 41.0 + transformed.y * 23.0) * 0.025 * burnV;
+             transformed.z += cos(uTime * 37.0 + transformed.x * 19.0) * 0.02 * burnV;
+           }
            float gl = iFx.y;
            if (gl > 0.0) {
              float n = fract(sin(dot(vec2(floor(uTime * 24.0), floor(transformed.y * 9.0)), vec2(12.9898, 78.233))) * 43758.5453);
              transformed.x += (n - 0.5) * gl * 0.5;
            }
-           vCreatureFx = vec4(iAnim.w, iFx.x, iFx.z, 0.0);
+           vCreatureFx = vec4(max(iAnim.w, 0.0), iFx.x, iFx.z, burnV);
+           vBurnY = transformed.y;
          }`,
       );
     if (!depth) {
@@ -141,7 +150,15 @@ export function creature<T extends THREE.Material>(mat: T, depth = false): T {
           '#include <common>',
           `#include <common>
            varying vec4 vCreatureFx;
+           varying float vBurnY;
+           uniform float uTime;
            ${GLSL_BAYER}`,
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+           // обугливание: кожа темнеет до угля
+           diffuseColor.rgb *= 1.0 - 0.78 * vCreatureFx.w;`,
         )
         .replace(
           '#include <emissivemap_fragment>',
@@ -151,6 +168,11 @@ export function creature<T extends THREE.Material>(mat: T, depth = false): T {
              float fres = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
              fres = fres * fres * fres;
              totalEmissiveRadiance += vCreatureFx.x * vec3(1.6, 1.3, 1.0) + vCreatureFx.z * fres * vec3(0.16, 0.6, 0.52);
+             if (vCreatureFx.w > 0.0) {
+               // языки огня бегут снизу вверх по телу
+               float fl = 0.5 + 0.5 * sin(vBurnY * 18.0 - uTime * 14.0 + sin(uTime * 7.0) * 2.0);
+               totalEmissiveRadiance += vCreatureFx.w * fl * fl * vec3(2.2, 0.9, 0.2);
+             }
            }
            if (vCreatureFx.y < 0.999 && vCreatureFx.y < bayer4(gl_FragCoord.xy) * 0.98 + 0.01) discard;`,
         );

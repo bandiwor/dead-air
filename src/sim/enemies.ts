@@ -44,6 +44,7 @@ export function spawnEnemy(w: World, kind: Kind, x: number, z: number, fake = fa
   e.avoid = 0;
   e.avoidSign = w.rng.sign();
   e.burn = 0;
+  e.age = 0;
   e.stepAcc = 0;
   e.phase = w.rng.range(0, Math.PI * 2);
   e.yaw = Math.atan2(w.player.z - z, w.player.x - x);
@@ -73,6 +74,7 @@ export function updateEnemies(w: World, dt: number): void {
   for (const e of w.enemies) {
     if (!e.active) continue;
     e.t += dt;
+    e.age += dt;
     e.atkCd = Math.max(0, e.atkCd - dt);
     e.flash = Math.max(0, e.flash - dt * 6);
     e.reveal = Math.max(0, e.reveal - dt);
@@ -186,18 +188,30 @@ function whisperer(w: World, e: Enemy, dist: number, nearFlare: number, dt: numb
   let speed = e.speed;
   let tx = p.x;
   let tz = p.z;
+  // шептун сухой, как старая бумага: в огне ракеты вспыхивает, горит ещё пару секунд
+  // после того, как выбежал из света, и поджигает тех, кто ползёт вплотную
   if (nearFlare < 5.5 && !e.fake) {
-    // ракета обжигает: бегут прочь
-    e.burn += dt;
-    e.hp -= 11 * dt;
+    if (e.burn <= 0) w.emit('ignite', e.x, e.y + 0.5, e.z, e.kind);
+    e.burn = Math.max(e.burn, 2.2);
+  }
+  if (e.burn > 0 && !e.fake) {
+    e.burn = Math.max(0, e.burn - dt);
+    e.hp -= 14 * dt;
     if (e.hp <= 0) {
-      w.emit('kill', e.x, e.y, e.z, e.kind, 0, e.yaw);
-      e.active = false;
+      killEnemy(w, e, false);
       return;
     }
+    for (const o of w.enemies) {
+      if (o === e || !o.active || o.kind !== Kind.Whisperer || o.fake || o.burn > 0) continue;
+      if (Math.hypot(o.x - e.x, o.z - e.z) < 0.95 && w.rng.chance(dt * 2.5)) {
+        o.burn = 1.8;
+        w.emit('ignite', o.x, o.y + 0.5, o.z, o.kind);
+      }
+    }
+    // мечется прочь от игрока и от огня
     tx = e.x + (e.x - p.x);
     tz = e.z + (e.z - p.z);
-    speed *= 1.1;
+    speed *= 1.15;
   } else if (e.litTorch) {
     speed *= 1 - ENEMIES[Kind.Whisperer].lightFear;
     if (e.litTime > 1.3) {
