@@ -6,8 +6,8 @@ import type { StrKey } from '../i18n';
  */
 
 export type SpawnAt = 'doorOut' | 'inside' | 'pierWater' | 'behind' | 'crevice' | 'forest';
-export type AppearAt = 'pier' | 'behind' | 'pole' | 'window' | 'water' | 'corner' | 'choir' | 'procession';
-export type ScareId = 'jumpscare' | 'scratch' | 'duck' | 'knockBack' | 'turn' | 'names' | 'speaker' | 'wet';
+export type AppearAt = 'pier' | 'behind' | 'pole' | 'window' | 'water' | 'corner' | 'choir' | 'procession' | 'witnesses' | 'boy';
+export type ScareId = 'jumpscare' | 'scratch' | 'duck' | 'knockBack' | 'turn' | 'names' | 'speaker' | 'wet' | 'steps';
 
 export type Effect =
   | { line: StrKey; style?: number }
@@ -17,7 +17,7 @@ export type Effect =
   | { closeDoor: number }
   | { light: number; on: boolean }
   | { deadAir: true }
-  | { spawn: 'whisperer' | 'mute' | 'unseeing'; count: number; at: SpawnAt; house?: number }
+  | { spawn: 'whisperer' | 'mute' | 'unseeing' | 'echo'; count: number; at: SpawnAt; house?: number }
   | { appear: AppearAt; house?: number }
   | { despawnPier: true }
   | { enable: string }
@@ -85,6 +85,12 @@ export interface ExtraDef {
   glint?: boolean;
   /** Видно и доступно только в отражении (когда смотришь в воду). */
   reflect?: boolean;
+  /** Сделать можно только с прикрытой лампой (иначе увидят из окна). */
+  dark?: boolean;
+  /** Спрятано в темноте: проступает на несколько секунд, только когда рядом крикнешь. */
+  voice?: boolean;
+  /** Решение концовки: пока его держат, снизу молча поднимаются одиннадцать. */
+  finale?: boolean;
   effects: Effect[];
 }
 

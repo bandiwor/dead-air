@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { NIGHT3A, NIGHT3B, YARD12 } from '../src/content/night3';
 import { MENU_NIGHTS, NIGHTS } from '../src/content/nights';
 import { Kind } from '../src/content/enemies';
-import { spawnEnemy } from '../src/sim/enemies';
+import { spawnEnemy, torchFactor } from '../src/sim/enemies';
 import { damageEnemy } from '../src/sim/combat';
 import { WORLD, heightAt, isWater, water } from '../src/proc/terrain';
 import type { World } from '../src/sim/world';
 import { input, makeWorld, step, walkTo } from './helpers/sim';
 import { slopeStep } from '../src/sim/player';
+import type { NightDef } from '../src/content/night';
+import type { SimEvent } from '../src/sim/types';
 import { t } from '../src/i18n';
 
 /** Встать на интерактив и удерживать действие, пока он не сработает. */
@@ -26,13 +28,13 @@ describe('ночь третья: «Весна»', () => {
   it('ребёнок безоружен, начинает у двенадцатого двора, вода поднимается', () => {
     const w = makeWorld(3, NIGHT3A);
     expect(w.player.owned.some(Boolean)).toBe(false);
-    expect(Math.hypot(w.player.x - 33, w.player.z - 30)).toBeLessThan(0.5);
+    expect(Math.hypot(w.player.x - NIGHT3A.start![0], w.player.z - NIGHT3A.start![1])).toBeLessThan(0.5);
     expect(water.level).toBeCloseTo(-1.9, 2);
     expect(isWater(w.player.x, w.player.z)).toBe(false);
-    step(w, input(), 100);
+    step(w, input(), 120);
     const mid = water.level;
     expect(mid).toBeGreaterThan(-1.9);
-    step(w, input(), 80);
+    step(w, input(), 220);
     expect(water.level).toBeCloseTo(-0.25, 2);
     expect(mid).toBeLessThan(water.level);
   });
@@ -54,15 +56,51 @@ describe('ночь третья: «Весна»', () => {
     expect(log.some((e) => e.type === 'drown')).toBe(true);
   });
 
-  it('после стука к Звонарёвым — лодка; в лодке ночь кончается', () => {
-    const w = makeWorld(3, NIGHT3A);
-    expect(w.interactables.find((i) => i.id === 'boat')!.enabled).toBe(false);
+  it('Звонарёвы отказали → ключ за окном (только с прикрытой лампой) → заслонка не поддаётся → лодка', () => {
+    const w = makeWorld(3, { ...NIGHT3A, beats: NIGHT3A.beats.filter((b) => !b.id.startsWith('mom')) });
+    w.cheats.god = true;
     w.flags.add('k3');
-    step(w, input(), 4);
+    step(w, input(), 5);
+    const key = w.interactables.find((i) => i.id === 'key')!;
+    expect(key.enabled).toBe(true);
+    // с открытой лампой ключ не снять: в доме не спят
+    use(w, 'key', 2.5);
+    expect(w.flags.has('gotKey')).toBe(false);
+    step(w, input({ voice: true }), 1 / 60);
+    expect(w.player.lampCovered).toBe(true);
+    use(w, 'key', 2.5);
+    expect(w.flags.has('gotKey')).toBe(true);
+    step(w, input(), 1);
+    use(w, 'trySluice', 9);
+    expect(w.flags.has('keyDropped')).toBe(true);
     expect(w.flags.has('toBoat')).toBe(true);
-    expect(w.interactables.find((i) => i.id === 'boat')!.enabled).toBe(true);
     use(w, 'boat', 7);
     expect(w.state).toBe('dawn');
+  });
+
+  it('из освещённого окна замечают ребёнка с открытой лампой — вода успевает прибыть; с прикрытой — нет', () => {
+    const lookAt = (covered: boolean): { shift: number; gazed: boolean } => {
+      const w = makeWorld(3, { ...NIGHT3A, beats: [] });
+      const h = w.layout.houses[0]!;
+      w.player.lampCovered = covered;
+      w.player.x = h.x + Math.sin(h.rot) * 6;
+      w.player.z = h.z + Math.cos(h.rot) * 6;
+      step(w, input(), 0.2);
+      return { shift: w.waterShift, gazed: w.flags.has('gazed') };
+    };
+    const open = lookAt(false);
+    expect(open.gazed).toBe(true);
+    expect(open.shift).toBeGreaterThan(0);
+    const hidden = lookAt(true);
+    expect(hidden.gazed).toBe(false);
+  });
+
+  it('свой дом — глухой сруб: сквозь него не пройти', () => {
+    const w = makeWorld(3, { ...NIGHT3A, beats: [] });
+    w.player.x = YARD12.x;
+    w.player.z = YARD12.z;
+    step(w, input(), 0.1);
+    expect(Math.hypot(w.player.x - YARD12.x, w.player.z - YARD12.z)).toBeGreaterThan(2);
   });
 
   it('за каждой дверью делают радио громче', () => {
@@ -140,10 +178,19 @@ describe('ночь третья: «Щель»', () => {
     expect(w.flags.has('choirDown')).toBe(true);
   });
 
-  it('буквы собираются по одной и без повторов', () => {
+  it('буквы — там, куда Наказ запрещает: позвать с пристани → «В», постучать в радиоузел → «А»', () => {
     const w = makeWorld(4, { ...NIGHT3B, waves: [], beats: NIGHT3B.beats.filter((b) => b.id !== 'nakaz') });
+    // послушный ничего не найдёт: букв не видно
+    expect(w.interactables.find((i) => i.id === 'letter1')!.enabled).toBe(false);
+    use(w, 'callPier', 3);
+    expect(w.flags.has('broke:4')).toBe(true);
+    step(w, input(), 3);
+    expect(w.interactables.find((i) => i.id === 'letter1')!.enabled).toBe(true);
     use(w, 'letter1', 0.2);
     expect(w.letters).toBe('В');
+    use(w, 'knockHut', 0.2);
+    expect(w.flags.has('broke:2')).toBe(true);
+    step(w, input(), 4);
     expect(w.flags.has('letters:1')).toBe(true);
     use(w, 'letter1', 0.2);
     expect(w.letters).toBe('В');
@@ -156,9 +203,12 @@ describe('ночь третья: «Щель»', () => {
       // Хор к этому моменту уже замолчал — сцену его появления не повторяем
       const w = makeWorld(4, { ...NIGHT3B, waves: [], beats: NIGHT3B.beats.filter((b) => b.id !== 'choir' && b.id !== 'ravine') });
       w.flags.add('choirDown');
+      w.flags.add('hasKey');
       for (const l of ['letters:1', 'letters:2', 'letters:3', 'letters:4']) w.flags.add(l);
       step(w, input(), 0.5);
-      use(w, id, 8);
+      use(w, id, 10);
+      // пока держали решение — снизу поднялись одиннадцать свидетелей
+      expect(w.flags.has('witnesses'), id).toBe(true);
       expect(w.flags.has(flag), id).toBe(true);
       expect(w.state, id).toBe('dawn');
       if (id === 'name') expect(w.flags.has('broke:5')).toBe(true);
@@ -248,5 +298,64 @@ describe('кат-сцены успевают за субтитрами', () => {
         expect(wait, `${n.id}: ${x.id}`).toBeGreaterThanOrEqual(3.6);
       }
     }
+  });
+});
+
+describe('Щель: голос, ключ, Хор в три фазы', () => {
+  const quietB = (): NightDef => ({ ...NIGHT3B, waves: [], beats: [] });
+
+  it('спрятанное в темноте проступает только от крика — и ненадолго', () => {
+    const w = makeWorld(4, quietB());
+    const key = w.interactables.find((i) => i.id === 'key3b')!;
+    w.player.x = key.x;
+    w.player.z = key.z;
+    step(w, input(), 0.1);
+    expect(w.player.focus).not.toBe(w.interactables.indexOf(key));
+    const log = step(w, input({ voice: true }), 1 / 60);
+    expect(log.some((e) => e.type === 'reveal')).toBe(true);
+    step(w, input(), 0.1);
+    expect(w.player.focus).toBe(w.interactables.indexOf(key));
+    step(w, input(), 9);
+    expect(w.player.focus).not.toBe(w.interactables.indexOf(key));
+  });
+
+  it('Хор: во второй фазе крик в паузе сбивает песню; в третьей гаснет фонарь; со смертью — свет', () => {
+    const w = makeWorld(4, quietB());
+    const c = spawnEnemy(w, Kind.Choir, w.player.x + 20, w.player.z)!;
+    c.hp = 60;
+    w.player.lastNoiseT = w.time; // шумно — не тает
+    step(w, input(), 0.1);
+    expect(c.state).toBe(2);
+    // ждём паузу после фамилии
+    let log: SimEvent[] = [];
+    for (let i = 0; i < 8 * 60 && !log.some((e) => e.type === 'choirNames'); i++) {
+      w.player.lastNoiseT = w.time;
+      log = step(w, input(), 1 / 60, log);
+    }
+    const hp = c.hp;
+    w.player.voiceCd = 0;
+    log = step(w, input({ voice: true }), 1 / 60);
+    expect(log.some((e) => e.type === 'choirStun')).toBe(true);
+    expect(c.hp).toBeLessThan(hp - 10);
+    // третья фаза — темнота
+    c.hp = 30;
+    step(w, input(), 0.1);
+    expect(w.flags.has('lightsOut')).toBe(true);
+    expect(torchFactor(w)).toBe(0);
+    w.player.lastNoiseT = -99;
+    step(w, input(), 8);
+    expect(c.active).toBe(false);
+    expect(w.flags.has('lightsOut')).toBe(false);
+    expect(w.player.battery).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it('открыть и выбросить — только с ключом со дна', () => {
+    const w = makeWorld(4, { ...NIGHT3B, waves: [], beats: NIGHT3B.beats.filter((b) => b.id !== 'choir' && b.id !== 'ravine' && b.id !== 'sluiceFace') });
+    w.flags.add('choirDown');
+    step(w, input(), 0.5);
+    expect(w.interactables.find((i) => i.id === 'open')!.enabled).toBe(false);
+    w.flags.add('hasKey');
+    step(w, input(), 0.5);
+    expect(w.interactables.find((i) => i.id === 'open')!.enabled).toBe(true);
   });
 });

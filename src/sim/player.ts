@@ -2,6 +2,7 @@ import { clamp, damp, dampAngle, wrapAngle } from '../core/math';
 import { groundAt, heightAt, isWater, surfaceAt, water } from '../proc/terrain';
 import { WEAPONS } from '../content/weapons';
 import { Kind } from '../content/enemies';
+import { shoutAtChoir } from './enemies';
 import { TRAIL_SIZE, type World } from './world';
 import type { InputFrame } from './types';
 import { fireWeapon, throwDynamite } from './combat';
@@ -218,7 +219,12 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
 
   // --- голос: крик-сонар (третья ночь) ---
   p.voiceCd = Math.max(0, p.voiceCd - dt);
-  if (inp.voice && w.cfg.night.voice && p.voiceCd <= 0) shout(w);
+  if (inp.voice && w.cfg.night.child) {
+    // ребёнок: прикрыть лампу ладонью / открыть
+    p.lampCovered = !p.lampCovered;
+    w.emit('lamp', p.x, p.y + 0.6, p.z, p.lampCovered ? 1 : 0);
+  } else if (inp.voice && w.cfg.night.voice && p.voiceCd <= 0) shout(w);
+  if (w.cfg.night.child) windowGaze(w, dt);
 
   // --- вдох: смотреть в воду можно не дольше одного вдоха ---
   if (w.reflecting) {
@@ -317,9 +323,49 @@ function updateSanity(w: World, dt: number): void {
  * Крик. Немой герой впервые подаёт голос: звук расходится кольцом и на секунды
  * «проявляет» всё вокруг; шептуны отшатываются. Но крик слышат все — и Хор им кормится.
  */
+/**
+ * «Весна»: из освещённых окон смотрят. Ребёнок с открытой лампой перед фасадом виден издалека;
+ * с прикрытой — только вплотную. Заметили — кричат «иди домой», хлопают ставнями, делают радио
+ * громче, а вода тем временем прибывает (ребёнок теряет время).
+ */
+const GAZE_LINES = ['n3a.gaze0', 'n3a.gaze1', 'n3a.gaze2'] as const;
+
+function windowGaze(w: World, dt: number): void {
+  const p = w.player;
+  const houses = w.layout.houses;
+  for (let i = 0; i < houses.length; i++) {
+    w.gazeCd[i] = Math.max(0, (w.gazeCd[i] ?? 0) - dt);
+    if (!w.houseLight[i] || w.gazeCd[i]! > 0 || w.doorOpen[i]) continue;
+    const h = houses[i]!;
+    // фасад смотрит в локальное +z
+    const fx = Math.sin(h.rot);
+    const fz = Math.cos(h.rot);
+    const dx = p.x - h.x;
+    const dz = p.z - h.z;
+    const d = Math.hypot(dx, dz);
+    const front = (dx * fx + dz * fz) / (d || 1);
+    const reach = p.lampCovered ? 3.2 : 9;
+    if (d > reach || front < 0.25) continue;
+    w.gazeCd[i] = 10;
+    w.waterShift += 7;
+    w.radioGain = Math.min(3.5, w.radioGain + 0.15);
+    w.emit('gaze', h.x, 1.4, h.z, i);
+    w.flags.add('gazed');
+    w.narrative.run([{ line: GAZE_LINES[i % GAZE_LINES.length]!, style: 1 }, { light: i, on: false }, { wait: 6 }, { light: i, on: true }]);
+  }
+}
+
 export function shout(w: World): void {
   const p = w.player;
   p.voiceCd = 4;
+  shoutAtChoir(w);
+  // эхо в темноте: на несколько секунд проступает то, чего не видно в фонаре
+  for (const it of w.interactables) {
+    if (!it.voice || !it.enabled || it.used) continue;
+    if (Math.hypot(it.x - p.x, it.z - p.z) > 18) continue;
+    it.revealUntil = w.time + 8;
+    w.emit('reveal', it.x, 0.6, it.z);
+  }
   p.lastNoiseT = w.time;
   w.noise(p.x, p.z, 1.1);
   w.emit('shout', p.x, p.y + 1.5, p.z);

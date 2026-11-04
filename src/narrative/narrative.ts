@@ -105,6 +105,10 @@ export class Narrative {
       if (e.scare === 'jumpscare') w.jumpscare();
       else if (e.scare === 'turn') {
         for (const en of w.enemies) if (en.active && en.kind === Kind.Apparition && en.state === 1) en.state = 3;
+      } else if (e.scare === 'steps') {
+        // шаги — из-за спины игрока, а не от столба
+        const a = p.yaw + Math.PI;
+        w.emit('scare', p.x + Math.cos(a) * 7, 1, p.z + Math.sin(a) * 7, -1, 0, 0, 'steps');
       } else {
         const h = e.house !== undefined ? w.layout.houses[e.house] : undefined;
         w.emit('scare', h?.x ?? w.layout.pole.x, 1, h?.z ?? w.layout.pole.z, e.house ?? -1, 0, 0, e.scare);
@@ -204,6 +208,30 @@ export class Narrative {
         }
       }
       w.flags.add('procession');
+    } else if (at === 'witnesses') {
+      // одиннадцать поднимаются снизу по Щели — полукругом, на отдалении
+      const c = WORLD.crevice;
+      const dx = c.ax - c.bx;
+      const dz = c.az - c.bz;
+      const l = Math.hypot(dx, dz) || 1;
+      for (let i = 0; i < 11; i++) {
+        const back = 9 + (i % 4) * 1.6;
+        const side = (i - 5) * 0.55;
+        const x = p.x + (dx / l) * back - (dz / l) * side;
+        const z = p.z + (dz / l) * back + (dx / l) * side;
+        const e = spawnEnemy(w, Kind.Unseeing, x, z);
+        if (e) e.delay = 3;
+      }
+      w.flags.add('witnesses');
+    } else if (at === 'boy') {
+      // мальчик поднимается из ила посреди сухого пруда и показывает на развалины
+      const e = spawnEnemy(w, Kind.Apparition, WORLD.pond.x + 2, WORLD.pond.z + 2);
+      if (e) {
+        e.state = 1;
+        e.tx = 9999;
+        e.yaw = Math.atan2(25 - (WORLD.pond.z + 2), 35 - (WORLD.pond.x + 2));
+      }
+      w.flags.add('boy');
     } else if (at === 'behind') {
       const a = p.yaw + Math.PI;
       const e = spawnEnemy(w, Kind.Apparition, p.x + Math.cos(a) * 1.3, p.z + Math.sin(a) * 1.3);

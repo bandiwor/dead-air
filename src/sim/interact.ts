@@ -23,6 +23,8 @@ export function updateInteract(w: World, inp: InputFrame, dt: number): void {
     const it = w.interactables[i]!;
     if (!it.enabled) continue;
     if (it.reflect !== refl) continue;
+    // спрятанное в темноте видно, только пока не стихло эхо крика
+    if (it.voice && w.time > it.revealUntil) continue;
     // рубильник бессмысленен в мёртвом эфире
     if (it.id === 'switch' && w.deadAir) continue;
     // записки и вещи в домах — только изнутри
@@ -44,10 +46,17 @@ export function updateInteract(w: World, inp: InputFrame, dt: number): void {
   if (w.reflecting) p.holding = true;
   if (best < 0) return;
   const it = w.interactables[best]!;
+  // это — только с прикрытой лампой: иначе увидят из окна
+  if (it.dark && !p.lampCovered) {
+    p.focusHold = 0;
+    return;
+  }
   if (it.hold > 0) {
     if (inp.action) {
       p.holding = true;
       p.focusHold += dt;
+      // решение у заслонки: стоит начать — и одиннадцать поднимаются снизу, молча
+      if (it.finale && p.focusHold > 0.3 && !w.flags.has('witnesses')) w.narrative.run([{ appear: 'witnesses' }]);
       if (p.focusHold >= it.hold) {
         p.focusHold = 0;
         trigger(w, best);

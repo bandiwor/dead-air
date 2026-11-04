@@ -37,7 +37,8 @@ export type EvType =
   | 'reload' | 'dryfire' | 'swap' | 'pickup' | 'throw' | 'flareLand' | 'deadAir' | 'airRestored'
   | 'reelProgress' | 'line' | 'scare' | 'waveStart' | 'waveEnd' | 'dawn' | 'alert' | 'growl' | 'charge'
   | 'vanish' | 'bounce' | 'spawn' | 'splash' | 'note' | 'knock' | 'door' | 'houseLight' | 'fragment'
-  | 'shout' | 'letter' | 'choirPulse' | 'feed' | 'drown' | 'ignite' | 'reflect' | 'reflectFigure' | 'overstay';
+  | 'shout' | 'letter' | 'choirPulse' | 'feed' | 'drown' | 'ignite' | 'reflect' | 'reflectFigure' | 'overstay'
+  | 'reveal' | 'gaze' | 'lamp' | 'choirNames' | 'choirStun' | 'choirPhase';
 
 export interface SimEvent {
   type: EvType;
@@ -180,6 +181,8 @@ export interface Player {
   aimHold: number;
   /** Вдох (0..1): тратится, пока смотришь в воду. */
   breath: number;
+  /** Ребёнок прикрыл лампу ладонью: его не видно из окон, но и он почти ничего не видит. */
+  lampCovered: boolean;
 }
 
 export type InteractKind = 'knock' | 'note' | 'custom';
@@ -203,5 +206,12 @@ export class Interactable {
   glint = false;
   /** Только в отражении. */
   reflect = false;
+  /** Только с прикрытой лампой. */
+  dark = false;
+  /** Проступает от крика: до какого времени видно. */
+  voice = false;
+  revealUntil = -1;
+  /** Решение концовки. */
+  finale = false;
   effects: readonly import('../content/script').Effect[] = [];
 }

@@ -5,7 +5,7 @@ import { WORLD, isWater, water } from '../proc/terrain';
 import { WEAPONS } from '../content/weapons';
 import type { NightDef } from '../content/night';
 import { Kind } from '../content/enemies';
-import { Statics } from './collision';
+import { Statics, boxOf } from './collision';
 import { Barrel, Enemy, Flare, Interactable, Pickup, Projectile, type EvType, type InputFrame, type Player, type SimEvent } from './types';
 import { doorOf } from '../proc/layout';
 import { houseAt, toWorld } from './houses';
@@ -66,6 +66,10 @@ export class World {
   trailCount = 0;
   readonly past = new Float32Array(PAST_SIZE * PAST_STRIDE);
   /** Смотрит ли игрок сейчас в воду, может ли посмотреть здесь, сколько раз уже смотрел. */
+  /** На сколько секунд вперёд сдвинут подъём воды (замешкался — вода успела больше). */
+  waterShift = 0;
+  /** Когда каждое окно сможет снова «заметить» ребёнка. */
+  gazeCd: number[] = [];
   reflecting = false;
   canReflect = false;
   reflectCount = 0;
@@ -130,9 +134,17 @@ export class World {
       owned: WEAPONS.map((w) => cfg.night.startWeapons.includes(w.id)),
       cooldown: 0, reload: 0, dynamite: 3, throwCd: 0, stillT: 0, moving: false, invuln: 0,
       stepAcc: 0, reel: 0, holdingReel: false, inLight: true, lastNoiseT: -99, canReel: false,
-      focus: -1, focusHold: 0, actionPrev: false, holding: false, voiceCd: 0, battery: 1, fired: 0, aimHold: 0, breath: 1,
+      focus: -1, focusHold: 0, actionPrev: false, holding: false, voiceCd: 0, battery: 1, fired: 0, aimHold: 0, breath: 1, lampCovered: false,
     };
     this.doorOpen = this.statics.doorOpen;
+    // глухой сруб ночи (двенадцатый двор во «Весне») — сквозь него не пройти
+    const blk = cfg.night.block;
+    if (blk) {
+      const def = { id: 99, x: blk.x, z: blk.z, w: blk.w, d: blk.d, h: 2.8, rot: blk.rot, lit: true };
+      this.statics.boxes.push(boxOf(def));
+      this.statics.footprints.push(boxOf(def));
+    }
+    this.gazeCd = this.layout.houses.map(() => 0);
     water.level = cfg.night.water?.from ?? WORLD.waterLevel;
     if (cfg.night.dynamite !== undefined) this.player.dynamite = cfg.night.dynamite;
     if (cfg.night.start) {
@@ -196,7 +208,7 @@ export class World {
       }
       const noteFx = ex.effects.find((e) => 'note' in e);
       const noteKey = noteFx && 'note' in noteFx ? noteFx.note : '';
-      add({ id: ex.id, kind: 'custom', x, z, r: ex.r, house, enabled: ex.enabled, hold: ex.hold, prompt: ex.prompt, rule: ex.rule, once: ex.once, glint: !!ex.glint, effects: ex.effects, reflect: !!ex.reflect, key: noteKey });
+      add({ id: ex.id, kind: 'custom', x, z, r: ex.r, house, enabled: ex.enabled, hold: ex.hold, prompt: ex.prompt, rule: ex.rule, once: ex.once, glint: !!ex.glint, effects: ex.effects, reflect: !!ex.reflect, dark: !!ex.dark, voice: !!ex.voice, finale: !!ex.finale, key: noteKey });
     }
   }
 
@@ -379,7 +391,7 @@ export class World {
     // вода
     const wv = this.cfg.night.water;
     if (wv) {
-      const k = clamp((this.time - wv.t0) / Math.max(0.001, wv.t1 - wv.t0), 0, 1);
+      const k = clamp((this.time + this.waterShift - wv.t0) / Math.max(0.001, wv.t1 - wv.t0), 0, 1);
       water.level = wv.from + (wv.to - wv.from) * k;
     } else water.level = WORLD.waterLevel;
 

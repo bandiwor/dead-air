@@ -14,7 +14,9 @@ const TORCH_HALF = 0.44;
 
 /** Сила фонаря: керосиновая лампа ребёнка слабее, садящаяся батарейка — тусклее. */
 export function torchFactor(w: World): number {
-  if (w.cfg.night.child) return 0.6;
+  // третья фаза Хора: фонарь гаснет совсем — видно только криком
+  if (w.flags.has('lightsOut')) return 0;
+  if (w.cfg.night.child) return w.player.lampCovered ? 0.12 : 0.6;
   if (!w.cfg.night.battery) return 1;
   const b = w.player.battery;
   return b > 0 ? 0.45 + 0.55 * b : 0.25;
@@ -392,15 +394,38 @@ function apparition(w: World, e: Enemy, dt: number): void {
 function choir(w: World, e: Enemy, dist: number, dt: number): void {
   const p = w.player;
   w.flags.add('choirUp');
+  // Три фазы:
+  //  1 — песня зовёт шептунов, выстрелы кормят; убивает только тишина;
+  //  2 — Хор поёт фамилии одиннадцати дворов; крик в паузе сбивает песню (сильно ранит);
+  //  3 — фонарь гаснет совсем: видно только криком, а умирает Хор по-прежнему от тишины.
+  const phase = e.hp > 66 ? 1 : e.hp > 33 ? 2 : 3;
+  if (phase !== e.state) {
+    e.state = phase;
+    w.emit('choirPhase', e.x, e.y + 1.5, e.z, phase);
+    w.flags.add(`choir:${phase}`);
+    if (phase === 3) w.flags.add('lightsOut');
+  }
+  e.avoid = Math.max(0, e.avoid - dt); // оглушён криком: молчит
   const silent = w.time - p.lastNoiseT > 2.5;
-  if (silent) e.hp -= 7.5 * dt;
+  if (silent) e.hp -= (phase === 2 ? 3.5 : 7.5) * dt;
   if (e.hp <= 0) {
     killEnemy(w, e, false);
     return;
   }
+  if (phase === 2 && e.avoid <= 0) {
+    // перекличка: каждые 6 с — пауза после фамилии, 2 с, когда можно перебить
+    e.tz -= dt;
+    e.delay = Math.max(0, e.delay - dt);
+    if (e.tz <= 0) {
+      e.tz = 6;
+      e.delay = 2;
+      e.phase = (e.phase + 1) % 11;
+      w.emit('choirNames', e.x, e.y + 1.5, e.z, Math.floor(e.phase), 2);
+    }
+  }
   if (dist < 30) moveToward(w, e, p.x, p.z, e.speed * (silent ? 0.6 : 1.3), dt);
   e.tx -= dt;
-  if (e.tx <= 0) {
+  if (e.tx <= 0 && e.avoid <= 0) {
     e.tx = 4.5;
     w.emit('choirPulse', e.x, e.y + 1.5, e.z, silent ? 0 : 1);
     if (dist < 14) {
@@ -415,6 +440,21 @@ function choir(w: World, e: Enemy, dist: number, dt: number): void {
     }
   }
   contactAttack(w, e, dist, ENEMIES[Kind.Choir].dmg, ENEMIES[Kind.Choir].atkCd, 8);
+}
+
+/** Крик посреди переклички Хора: песня сбивается. true — попали в паузу. */
+export function shoutAtChoir(w: World): boolean {
+  const p = w.player;
+  for (const e of w.enemies) {
+    if (!e.active || e.kind !== Kind.Choir || e.state !== 2 || e.delay <= 0) continue;
+    if (Math.hypot(e.x - p.x, e.z - p.z) > 30) continue;
+    e.hp -= 18;
+    e.delay = 0;
+    e.avoid = 3;
+    w.emit('choirStun', e.x, e.y + 1.5, e.z);
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -451,6 +491,15 @@ function unseeing(w: World, e: Enemy, dist: number, dt: number): void {
   }
   if (e.delay === 2) {
     procession(w, e, dt);
+    return;
+  }
+  if (e.delay === 3) {
+    // свидетели: подходят и встают вокруг — смотреть, что вы решите. Не нападают.
+    if (dist > 2.8) moveToward(w, e, p.x, p.z, 0.8, dt);
+    else {
+      e.vx = e.vz = 0;
+      e.yaw = Math.atan2(p.z - e.z, p.x - e.x);
+    }
     return;
   }
   let tx = p.x;

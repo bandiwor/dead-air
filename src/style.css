@@ -653,3 +653,5 @@ button.note-row:active, button.note-row:hover { background: rgba(127, 214, 194, 
 .note-tag.k-nakaz { color: var(--sodium); border-color: rgba(232, 163, 61, 0.35); }
 .note-row.locked .note-tag { color: #3c4542; border-color: #222a28; }
 .note-preview { font-size: 11.5px; line-height: 1.45; }
+
+.btn-voice.on { background: rgba(127, 214, 194, 0.3); color: #fff; }

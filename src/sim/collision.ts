@@ -16,7 +16,7 @@ const CELL = 4;
 const N = 44; // покрывает ±88 м
 const OFF = (N * CELL) / 2;
 
-function boxOf(h: HouseDef, pad = 0): Box {
+export function boxOf(h: HouseDef, pad = 0): Box {
   return { cx: h.x, cz: h.z, hw: h.w / 2 + pad, hd: h.d / 2 + pad, c: Math.cos(h.rot), s: Math.sin(h.rot) };
 }
 

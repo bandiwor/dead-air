@@ -296,7 +296,11 @@ export class ActorsView {
     let ng = 0;
     for (const it of w.interactables) {
       const isNote = it.kind === 'note' && !w.notesRead.includes(it.id);
-      if (!it.enabled || !(isNote || it.glint)) continue;
+      // спрятанное в темноте: искра горит, пока не стихло эхо крика
+      const revealed = it.voice && w.time < it.revealUntil;
+      if (it.voice && !revealed) continue;
+      if (it.reflect) continue;
+      if (!it.enabled || !(isNote || it.glint || revealed)) continue;
       if (it.house >= 0 && !w.doorOpen[it.house]) continue;
       const pulse = 0.8 + Math.sin(this.time * 4 + it.x) * 0.35;
       m4.compose(v.set(it.x, heightAt(it.x, it.z) + 1.0 + Math.sin(this.time * 2) * 0.05, it.z), q.setFromAxisAngle(UP, this.time * 1.5), sc.set(pulse, pulse * 1.4, pulse));

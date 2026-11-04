@@ -67,12 +67,35 @@ export function handleEvents(w: World, c: EventCtx, dt: number): void {
     if (e.kind === Kind.Echo || e.kind === Kind.Apparition) eerie = Math.max(eerie, (1 - d / 12) * (e.state === 1 ? 0.35 : 1));
   }
   creatureAmbience(w, c, dt);
+  finaleCues(w, c, dt);
   const target = Math.max(0, eerie * 0.55, (0.35 - p.sanity / 100) * 0.9, w.deadAir ? 0.12 : 0);
   c.r.glitch = Math.max(target, c.r.glitch - dt * 1.8);
   nearestEnemy = near;
 }
 
 export let nearestEnemy = 99;
+
+/**
+ * Пока держат решение у заслонки — слышно, к чему оно ведёт: открыть — шум воды и тишина
+ * спящей деревни; выбросить ключ — издалека начинается вальс; имя — голос матери.
+ */
+let finaleT = 0;
+function finaleCues(w: World, c: EventCtx, dt: number): void {
+  const p = w.player;
+  const it = p.focus >= 0 ? w.interactables[p.focus] : undefined;
+  if (!it || !it.finale || !p.holding) {
+    finaleT = 0;
+    return;
+  }
+  finaleT -= dt;
+  if (finaleT > 0) return;
+  finaleT = 1.3;
+  const k = Math.min(1, p.focusHold / Math.max(0.1, it.hold));
+  if (it.id === 'open') c.audio.play('splash', { vol: 0.3 + k * 0.6, rate: 0.5, reverb: 0.8, low: true });
+  else if (it.id === 'throw') c.audio.play('speakerVoice', { vol: 0.25 + k * 0.6, rate: 0.85, bus: 'music', reverb: 0.7 });
+  else if (it.id === 'name') c.audio.play('whisper', { vol: 0.35 + k * 0.6, rate: 0.85, reverb: 0.5 });
+  c.r.glitch = Math.max(c.r.glitch, k * 0.5);
+}
 
 /** Кто из шептунов уже под лучом (чтобы шипение звучало один раз на вход в свет). */
 const litBefore = new Set<number>();
@@ -428,6 +451,41 @@ function handle(e: SimEvent, w: World, c: EventCtx): void {
       audio.play('splash', { x: e.x, z: e.z, vol: 0.9, rate: 0.6, reverb: 0.3 });
       r.hurt = Math.min(1, r.hurt + 0.25);
       vibrate(40);
+      break;
+    case 'gaze':
+      // заметили из окна: ставня хлопает, радио громче
+      audio.play('slam', { x: e.x, z: e.z, vol: 0.8, rate: 1.2, reverb: 0.3 });
+      audio.play('speakerVoice', { x: e.x, z: e.z, vol: 0.5, rate: 1.15, bus: 'music' });
+      vibrate(30);
+      break;
+    case 'lamp':
+      // ладонь на стекле лампы
+      audio.play('dryfire', { x: e.x, z: e.z, vol: 0.35, rate: 0.7 });
+      break;
+    case 'reveal':
+      // эхо проявило спрятанное: фосфорная искра на месте
+      r.fx.assemble(e.x, e.y, e.z);
+      audio.play('whisper', { x: e.x, z: e.z, vol: 0.4, rate: 1.3, reverb: 0.6 });
+      break;
+    case 'choirNames':
+      // фамилия — и пауза, в которую можно крикнуть
+      audio.play('choir', { x: e.x, z: e.z, vol: 0.9, rate: 0.9 + (e.a % 4) * 0.04, reverb: 0.6 });
+      hud.toastText(t('hud.choirPause'));
+      break;
+    case 'choirStun':
+      audio.play('tapestop', { x: e.x, z: e.z, vol: 1, reverb: 0.5 });
+      audio.play('static', { x: e.x, z: e.z, vol: 0.6 });
+      r.glitch = 1;
+      r.addTrauma(0.4);
+      break;
+    case 'choirPhase':
+      audio.play('sting', { vol: 0.6, rate: 0.6 + e.a * 0.1, reverb: 0.4 });
+      if (e.a === 3) {
+        // фонарь гаснет: щелчок, тишина
+        audio.play('dryfire', { vol: 0.8, rate: 0.5 });
+        audio.duck(2);
+      }
+      r.glitch = Math.max(r.glitch, 0.7);
       break;
     case 'reflect':
       // взгляд уходит под воду: всё глохнет, слышно собственное сердце

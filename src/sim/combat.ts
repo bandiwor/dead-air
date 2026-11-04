@@ -149,7 +149,12 @@ export function damageEnemy(w: World, e: Enemy, dmg: number, kx: number, kz: num
 
 export function killEnemy(w: World, e: Enemy, explosive: boolean): void {
   e.active = false;
-  if (e.kind === Kind.Choir) w.flags.add('choirDown');
+  if (e.kind === Kind.Choir) {
+    w.flags.add('choirDown');
+    // песня кончилась — фонарь вспыхивает снова
+    w.flags.delete('lightsOut');
+    w.player.battery = Math.max(w.player.battery, 0.6);
+  }
   // В тишине умирающий шептун договаривает то, что не сказал. Радио это заглушает.
   if (w.deadAir && e.kind === Kind.Whisperer && w.time - w.lastFragT > 3.5) {
     w.addFragment(e.x, e.y + 0.6, e.z);

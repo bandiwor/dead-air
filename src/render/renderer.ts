@@ -3,7 +3,7 @@ import { clamp, damp } from '../core/math';
 import type { World } from '../sim/world';
 import { WORLD, groundAt, heightAt, water } from '../proc/terrain';
 import { torchFactor } from '../sim/enemies';
-import { SLUICE, YARD12 } from '../content/night3';
+import { MOTHER_AT, SLUICE, YARD12 } from '../content/night3';
 import { boatGeometry, houseGeometry, humanoidGeometry, ruinGeometry, sluiceGeometry } from './models';
 import type { TextureSet } from './textures';
 import { buildWorldView, COLORS, type WorldView } from './worldView';
@@ -189,6 +189,15 @@ export class GameRenderer {
     this.reflectSet.traverse((o) => o.layers.set(GameRenderer.REFLECT_LAYER));
     this.reflectSet.visible = false;
     this.scene.add(this.reflectSet);
+    // мать в дверях двенадцатого двора (во «Весне»): стоит на пороге, пока вода не зальёт крыльцо
+    const momMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    momMat.color.setScalar(1.4);
+    this.mother = new THREE.Mesh(humanoidGeometry({ height: 1.68, coat: 0x4a3a34, skin: 0xa88e7c, pants: 0x3a2c28, thin: 0.9 }), momMat);
+    this.mother.position.set(MOTHER_AT[0], heightAt(MOTHER_AT[0], MOTHER_AT[1]), MOTHER_AT[1]);
+    this.mother.rotation.y = 0.4;
+    this.mother.castShadow = true;
+    this.mother.visible = false;
+    this.scene.add(this.mother);
     // лужи — тёмные зеркальца на земле
     this.puddleMat = new THREE.MeshStandardMaterial({ color: 0x14222a, roughness: 0.08, metalness: 0, emissive: 0x05090c, normalMap: tex.waterNormal, normalScale: new THREE.Vector2(0.3, 0.3) });
     this.scene.add(this.puddles);
@@ -220,6 +229,7 @@ export class GameRenderer {
   /** Слой 2 — то, что видно только в отражении. */
   private static readonly REFLECT_LAYER = 2;
   private readonly reflectSet = new THREE.Group();
+  private readonly mother: THREE.Mesh;
   private readonly tmpM = new THREE.Matrix4();
   private readonly tmpQ = new THREE.Quaternion();
   private readonly tmpS = new THREE.Vector3();
@@ -429,7 +439,10 @@ export class GameRenderer {
     this.flashlight.intensity = this.flashlightOn && p.alive ? 340 * flick * tf : 0;
     this.flashlight.distance = 28 * tf;
     this.aura.position.set(p.x, p.y + (child ? 0.9 : 1.6), p.z);
-    this.aura.intensity = this.flashlightOn ? (w.cfg.night.child ? 6 : 3) : 0;
+    // прикрытая лампа почти не светит; в темноте третьей фазы Хора отсвета нет совсем
+    const auraK = w.flags.has('lightsOut') ? 0 : w.cfg.night.child && w.player.lampCovered ? 0.18 : 1;
+    this.aura.intensity = this.flashlightOn ? (w.cfg.night.child ? 6 : 3) * auraK : 0;
+    this.mother.visible = !!w.cfg.night.child && water.level < -0.4;
     this.hemi.intensity = damp(this.hemi.intensity, this.cinematic ? 1.7 : 0.85, 2, dt);
     this.moon.intensity = damp(this.moon.intensity, this.cinematic ? 0.9 : 0.32, 2, dt);
     this.fog.density = damp(this.fog.density, this.cinematic ? this.baseFog * 0.55 : this.baseFog, 2, dt);

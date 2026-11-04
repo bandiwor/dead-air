@@ -71,6 +71,8 @@ export interface NightDef {
   reflect?: { puddles: { x: number; z: number; r: number }[]; overstay: Effect[] };
   /** Индекс пункта Наказа «не отворачиваться от закрывших лицо» (Невидевшие). */
   turnRule?: number;
+  /** Глухой сруб посреди ночи (двенадцатый двор во «Весне»): x, z, размеры, поворот. */
+  block?: { x: number; z: number; w: number; d: number; rot: number };
   /** На рассвете вода уходит до этого уровня — показывается то, что было на дне. */
   dawnRecede?: number;
   /** Где игрок начинает (по умолчанию — у площади). */

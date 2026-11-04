@@ -25,6 +25,7 @@ export class Hud {
   private readonly goalMarker: { el: HTMLElement; label: HTMLElement };
   private readonly objective: HTMLElement;
   private readonly letters: HTMLElement;
+  private voiceBtn!: HTMLElement;
   private readonly breath: HTMLElement;
   private readonly breathFill: HTMLElement;
   private readonly br: HTMLElement;
@@ -83,15 +84,16 @@ export class Hud {
     this.letters = h('div', 'hud-letters hidden', '', tl);
 
     this.buttons = h('div', 'buttons', undefined, this.root);
-    const mk = (id: 'action' | 'swap' | 'throw' | 'reload' | 'voice', key: Parameters<typeof t>[0]): void => {
+    const mk = (id: 'action' | 'swap' | 'throw' | 'reload' | 'voice', key: Parameters<typeof t>[0]): HTMLElement => {
       const b = h('button', `btn btn-${id}`, t(key), this.buttons);
       input.bindButton(b, id);
+      return b;
     };
     mk('swap', 'btn.swap');
     mk('reload', 'btn.reload');
     mk('throw', 'btn.throw');
     mk('action', 'btn.action');
-    mk('voice', 'btn.voice');
+    this.voiceBtn = mk('voice', 'btn.voice');
   }
 
   private set(el: HTMLElement, text: string): void {
@@ -206,7 +208,10 @@ export class Hud {
     const armed = !night.child;
     show(this.br, armed);
     this.buttons.classList.toggle('unarmed', !armed);
-    this.buttons.classList.toggle('voiced', !!night.voice);
+    // та же кнопка: у ребёнка — прикрыть лампу, в «Щели» — крикнуть
+    this.buttons.classList.toggle('voiced', !!night.voice || !!night.child);
+    this.set(this.voiceBtn, night.child ? t('btn.lamp') : t('btn.voice'));
+    this.voiceBtn.classList.toggle('on', !!night.child && p.lampCovered);
     show(this.letters, !!night.voice);
     if (night.voice) {
       const name = 'ВАНЯ';
