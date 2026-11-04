@@ -637,3 +637,19 @@ button {
 .hud-breath .hud-air-label { color: var(--phos); }
 .hud-breath .bar-fill { background: var(--phos); }
 .hud-breath.low .hud-air-label { color: var(--red); animation: blink 0.4s steps(2) infinite; }
+
+/* вкладки на экране достижений */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 4px; grid-column: 1 / -1; }
+.tab { padding: 8px 16px; font-size: 12px; letter-spacing: 0.22em; color: var(--dim); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab.on { color: var(--sodium); border-bottom-color: var(--sodium); }
+
+/* доска записок */
+.note-chapter { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; padding-bottom: 4px; border-bottom: 1px solid rgba(127, 214, 194, 0.15); color: var(--ink); font-size: 11px; letter-spacing: 0.2em; }
+.note-row { grid-column: 1 / -1; display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: center; padding: 8px 4px; text-align: left; border-bottom: 1px solid rgba(127, 214, 194, 0.06); font: inherit; color: var(--ink); background: transparent; }
+button.note-row:active, button.note-row:hover { background: rgba(127, 214, 194, 0.06); }
+.note-row.locked { color: #3c4542; }
+.note-tag { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); border: 1px solid rgba(127, 214, 194, 0.18); padding: 2px 6px; text-align: center; }
+.note-tag.k-water { color: var(--phos); border-color: var(--line); }
+.note-tag.k-nakaz { color: var(--sodium); border-color: rgba(232, 163, 61, 0.35); }
+.note-row.locked .note-tag { color: #3c4542; border-color: #222a28; }
+.note-preview { font-size: 11.5px; line-height: 1.45; }

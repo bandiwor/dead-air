@@ -563,6 +563,13 @@ export const ru = {
   'note.reflCellar':
     'В воде подпола — не этот дом. Низкий потолок, зыбка, на балке ножом: «Ивашовы. Весна». ' +
     'Из-под воды к стеклу отражения прижимаются ладони. Маленькие.',
+  'ui.notesBoard': 'ЗАПИСКИ',
+  'notes.count': 'Прочитано {n} из {total}',
+  'notes.locked': '— не найдено —',
+  'notes.kind.house': 'дом',
+  'notes.kind.water': 'в воде',
+  'notes.kind.find': 'находка',
+  'notes.kind.nakaz': 'наказ',
 } as const;
 
 export type StrKey = keyof typeof ru;

@@ -136,7 +136,7 @@ export class Game {
         resetProgress(this.progress);
         this.introSeen.clear();
         this.refreshNights();
-        this.screens.setAchievements(this.progress.ach);
+        this.screens.setAchievements(this.progress.ach, this.progress.notes);
       },
     });
     this.installCard = new InstallCard(root, {
@@ -163,9 +163,9 @@ export class Game {
     this.ach = new AchievementTracker(this.progress, () => saveProgress(this.progress), (a) => {
       this.achToast.push(a);
       this.audio.play('pickup', { bus: 'ui', vol: 0.7, rate: a.rarity === 'legendary' ? 0.7 : 1, reverb: 0.3 });
-      this.screens.setAchievements(this.progress.ach);
+      this.screens.setAchievements(this.progress.ach, this.progress.notes);
     });
-    this.screens.setAchievements(this.progress.ach);
+    this.screens.setAchievements(this.progress.ach, this.progress.notes);
     this.refreshNights();
     this.screens.open('boot');
     this.updater.onChange = (st) => this.onUpdateStatus(st);
@@ -516,6 +516,12 @@ export class Game {
 
   /** Записка: игра стоит, пока её читают. */
   private openNote(key: string): void {
+    // на доску записок — всё, что когда-либо прочитано (даже если записку сейчас не покажем)
+    if (/^note\.[A-Za-z0-9_]{1,40}$/.test(key) && !this.progress.notes.includes(key)) {
+      this.progress.notes.push(key);
+      saveProgress(this.progress);
+      this.screens.setAchievements(this.progress.ach, this.progress.notes);
+    }
     if (this.mode !== 'play') return;
     this.mode = 'note';
     this.input.enabled = false;

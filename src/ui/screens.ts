@@ -2,6 +2,7 @@ import { t, type StrKey } from '../i18n';
 import type { Settings } from '../platform/storage';
 import { h, show } from './dom';
 import { ACHIEVEMENTS, RARITY_ORDER } from '../content/achievements';
+import { NOTE_BOOK, NOTE_TOTAL } from '../content/notes';
 import { iconSvg } from './icons';
 
 export interface ScreenHandlers {
@@ -255,12 +256,35 @@ export class Screens {
   }
 
   /** Список достижений: иконка и название окрашены по редкости, закрытые — тусклые. */
-  setAchievements(unlocked: readonly string[]): void {
+  /** Экран «Достижения» с вкладкой «Записки»: последние аргументы — чтобы перерисовать при смене вкладки. */
+  private achTab: 'ach' | 'notes' = 'ach';
+  private achArgs: { unlocked: readonly string[]; notes: readonly string[] } = { unlocked: [], notes: [] };
+
+  setAchievements(unlocked: readonly string[], notes: readonly string[] = this.achArgs.notes): void {
+    this.achArgs = { unlocked, notes };
     const el = this.screens.get('achievements')!;
     el.textContent = '';
     const box = h('div', 'panel ach-list', undefined, el);
     box.dataset.scroll = '1';
-    h('div', 'panel-title', t('ui.achievements'), box);
+    // вкладки: достижения | записки
+    const tabs = h('div', 'tabs', undefined, box);
+    const tab = (id: 'ach' | 'notes', key: StrKey): void => {
+      const b = h('button', `tab${this.achTab === id ? ' on' : ''}`, t(key), tabs);
+      b.addEventListener('click', () => {
+        if (this.achTab === id) return;
+        this.h.onClick();
+        this.achTab = id;
+        this.setAchievements(this.achArgs.unlocked, this.achArgs.notes);
+      });
+    };
+    tab('ach', 'ui.achievements');
+    tab('notes', 'ui.notesBoard');
+    if (this.achTab === 'ach') this.buildAchievements(box, unlocked);
+    else this.buildNotes(box, notes);
+    this.button(box, 'ui.back', () => this.open('title'));
+  }
+
+  private buildAchievements(box: HTMLElement, unlocked: readonly string[]): void {
     h('div', 'small', t('ach.count', { n: unlocked.length, total: ACHIEVEMENTS.length }), box);
     const sorted = [...ACHIEVEMENTS].sort((a, b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity));
     for (const a of sorted) {
@@ -273,7 +297,34 @@ export class Screens {
       h('div', 'ach-desc', got || !a.secret ? t(a.desc) : t('ach.secret'), txt);
       h('div', 'ach-rarity', t(`rarity.${a.rarity}` as StrKey), row);
     }
-    this.button(box, 'ui.back', () => this.open('title'));
+  }
+
+  /**
+   * Доска записок: всё, что игрок когда-либо прочитал, по ночам. Прочитанные — начало текста,
+   * нажатие открывает целиком. Ненайденные — пустая строка с подсказкой, где искать (дом / вода / находка).
+   */
+  private buildNotes(box: HTMLElement, read: readonly string[]): void {
+    const got = NOTE_BOOK.reduce((a, c) => a + c.notes.filter((n) => read.includes(n.key)).length, 0);
+    h('div', 'small', t('notes.count', { n: got, total: NOTE_TOTAL }), box);
+    for (const ch of NOTE_BOOK) {
+      const n = ch.notes.filter((x) => read.includes(x.key)).length;
+      const head = h('div', 'note-chapter', undefined, box);
+      h('span', '', t(ch.title), head);
+      h('span', 'small', `${n} / ${ch.notes.length}`, head);
+      for (const note of ch.notes) {
+        const has = read.includes(note.key);
+        const row = h(has ? 'button' : 'div', `note-row${has ? '' : ' locked'}`, undefined, box);
+        h('span', `note-tag k-${note.kind}`, t(`notes.kind.${note.kind}` as StrKey), row);
+        const text = t(note.key);
+        h('span', 'note-preview', has ? preview(text) : t('notes.locked'), row);
+        if (has) {
+          row.addEventListener('click', () => {
+            this.h.onClick();
+            this.showNote(text, () => undefined);
+          });
+        }
+      }
+    }
   }
 
   showNote(text: string, onClose: () => void): void {
@@ -406,4 +457,10 @@ export class Screens {
   updateSettings(s: Settings): void {
     this.settings = { ...s };
   }
+}
+
+/** Начало записки для строки на доске: первая фраза, без переносов, не длиннее строки. */
+function preview(text: string): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > 92 ? `${flat.slice(0, 90).trimEnd()}…` : flat;
 }

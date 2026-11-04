@@ -48,12 +48,15 @@ describe('прогресс', () => {
   beforeEach(() => mem.clear());
 
   it('по умолчанию открыта одна ночь', () => {
-    expect(loadProgress()).toEqual({ unlocked: 1, seen: [], ach: [], endings: [], items: [] });
+    expect(loadProgress()).toEqual({ unlocked: 1, seen: [], ach: [], endings: [], items: [], notes: [] });
   });
 
   it('сохраняется и валидируется', () => {
-    saveProgress({ unlocked: 2, seen: [0, 4], ach: ['reel', 'dawn1'], endings: ['loop'], items: ['weapon:smg', 'ammo'] });
-    expect(loadProgress()).toEqual({ unlocked: 2, seen: [0, 4], ach: ['reel', 'dawn1'], endings: ['loop'], items: ['weapon:smg', 'ammo'] });
+    saveProgress({ unlocked: 2, seen: [0, 4], ach: ['reel', 'dawn1'], endings: ['loop'], items: ['weapon:smg', 'ammo'], notes: ['note.nakaz', 'note.reflHut'] });
+    expect(loadProgress()).toEqual({ unlocked: 2, seen: [0, 4], ach: ['reel', 'dawn1'], endings: ['loop'], items: ['weapon:smg', 'ammo'], notes: ['note.nakaz', 'note.reflHut'] });
+    mem.set('dead-air:progress', JSON.stringify({ ach: ['ok', 42, '<script>', 'x'.repeat(99)] }));
+    mem.set('dead-air:progress', JSON.stringify({ notes: ['note.dinner', 'note.<img>', 'ui.title', 42, 'note.' + 'x'.repeat(80)] }));
+    expect(loadProgress().notes).toEqual(['note.dinner']);
     mem.set('dead-air:progress', JSON.stringify({ ach: ['ok', 42, '<script>', 'x'.repeat(99)] }));
     expect(loadProgress().ach).toEqual(['ok']);
     mem.set('dead-air:progress', JSON.stringify({ unlocked: 9999, seen: [1, 'x', -3, 2.5, 4] }));
@@ -76,11 +79,11 @@ describe('version.json', () => {
   });
 
   it('сброс прогресса очищает всё на том же объекте и сохраняет', () => {
-    const p = { unlocked: 3, seen: [0, 1, 5], ach: ['first_blood', 'name'], endings: ['flood'], items: ['med'] };
+    const p = { unlocked: 3, seen: [0, 1, 5], ach: ['first_blood', 'name'], endings: ['flood'], items: ['med'], notes: ['note.dinner'] };
     const ref = p.ach;
     resetProgress(p);
-    expect(p).toEqual({ unlocked: 1, seen: [], ach: [], endings: [], items: [] });
+    expect(p).toEqual({ unlocked: 1, seen: [], ach: [], endings: [], items: [], notes: [] });
     expect(p.ach).toBe(ref);
-    expect(loadProgress()).toEqual({ unlocked: 1, seen: [], ach: [], endings: [], items: [] });
+    expect(loadProgress()).toEqual({ unlocked: 1, seen: [], ach: [], endings: [], items: [], notes: [] });
   });
 });

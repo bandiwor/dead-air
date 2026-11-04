@@ -8,7 +8,7 @@ import { Kind } from '../src/content/enemies';
 import { explode } from '../src/sim/combat';
 
 function tracker() {
-  const progress = { unlocked: 1, seen: [] as number[], ach: [] as string[], endings: [] as string[], items: [] as string[] };
+  const progress = { unlocked: 1, seen: [] as number[], ach: [] as string[], endings: [] as string[], items: [] as string[], notes: [] as string[] };
   const got: string[] = [];
   const t = new AchievementTracker(progress, () => undefined, (a) => got.push(a.id));
   return { t, progress, got };

@@ -81,6 +81,8 @@ export interface Progress {
   endings: string[];
   /** Какие находки уже видели (первая — стоп-кадр, дальше — маленькая карточка). */
   items: string[];
+  /** Какие записки игрок когда-либо прочитал (ключи текстов) — для доски записок. */
+  notes: string[];
 }
 
 const PKEY = 'dead-air:progress';
@@ -91,9 +93,11 @@ export function loadProgress(): Progress {
     const unlocked = typeof o.unlocked === 'number' && Number.isInteger(o.unlocked) ? Math.min(20, Math.max(1, o.unlocked)) : 1;
     const seen = Array.isArray(o.seen) ? o.seen.filter((v): v is number => Number.isInteger(v) && v >= 0 && v < 32) : [];
     const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && /^[a-z0-9_:]{1,32}$/.test(x)).slice(0, 64) : []);
-    return { unlocked, seen, ach: ids(o.ach), endings: ids(o.endings), items: ids(o.items) };
+    // ключи записок: «note.» + буквы/цифры — ничего лишнего из хранилища в интерфейс не попадёт
+    const notes = Array.isArray(o.notes) ? o.notes.filter((x): x is string => typeof x === 'string' && /^note\.[A-Za-z0-9_]{1,40}$/.test(x)).slice(0, 200) : [];
+    return { unlocked, seen, ach: ids(o.ach), endings: ids(o.endings), items: ids(o.items), notes };
   } catch {
-    return { unlocked: 1, seen: [], ach: [], endings: [], items: [] };
+    return { unlocked: 1, seen: [], ach: [], endings: [], items: [], notes: [] };
   }
 }
 
@@ -104,6 +108,7 @@ export function resetProgress(p: Progress): void {
   p.ach.length = 0;
   p.endings.length = 0;
   p.items.length = 0;
+  p.notes.length = 0;
   saveProgress(p);
 }
 
