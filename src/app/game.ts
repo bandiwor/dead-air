@@ -721,17 +721,19 @@ export class Game {
     this.input.playerScreen = ps;
     if (this.mode === 'play' || this.mode === 'note' || this.mode === 'beast' || this.mode === 'intro' || this.mode === 'dawn') {
       const door = w.layout.hutDoor;
-      let goal: { x: number; y: number } | null = null;
+      // метка цели: экранная точка + расстояние от игрока (подписывается, когда цель за краем экрана)
+      const mark = (x: number, z: number): { x: number; y: number; dist: number } => ({ ...r.project(x, 1, z), dist: Math.hypot(x - p.x, z - p.z) });
+      let goal: { x: number; y: number; dist: number } | null = null;
       const m = w.marker;
       if (m && m.house !== undefined && w.playerHouse !== m.house) {
         const h = w.layout.houses[m.house];
         if (h) {
           const d = doorOf(h, 1);
-          goal = r.project(d.x, 1, d.z);
+          goal = mark(d.x, d.z);
         }
-      } else if (m?.pier) goal = r.project(WORLD.pier.x1 - 0.5, 1, (WORLD.pier.z0 + WORLD.pier.z1) / 2);
-      else if (m?.at) goal = r.project(m.at[0], 1, m.at[1]);
-      this.hud.update(w, dt, this.input.usingTouch || isTouch(), r.project(door.x, 1, door.z), goal);
+      } else if (m?.pier) goal = mark(WORLD.pier.x1 - 0.5, (WORLD.pier.z0 + WORLD.pier.z1) / 2);
+      else if (m?.at) goal = mark(m.at[0], m.at[1]);
+      this.hud.update(w, dt, this.input.usingTouch || isTouch(), mark(door.x, door.z), goal);
     }
   }
 }

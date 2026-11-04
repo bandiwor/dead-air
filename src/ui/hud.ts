@@ -21,8 +21,8 @@ export class Hud {
   private readonly promptLabel: HTMLElement;
   private readonly subs: HTMLElement;
   private readonly toast: HTMLElement;
-  private readonly marker: HTMLElement;
-  private readonly goalMarker: HTMLElement;
+  private readonly marker: { el: HTMLElement; label: HTMLElement };
+  private readonly goalMarker: { el: HTMLElement; label: HTMLElement };
   private readonly objective: HTMLElement;
   private readonly letters: HTMLElement;
   private readonly br: HTMLElement;
@@ -70,8 +70,8 @@ export class Hud {
     this.promptFill = h('div', 'bar-fill', undefined, pb);
     this.subs = h('div', 'subs', '', this.root);
     this.toast = h('div', 'toast', '', this.root);
-    this.marker = h('div', 'marker hidden', '▲', this.root);
-    this.goalMarker = h('div', 'marker goal hidden', '▲', this.root);
+    this.marker = { el: h('div', 'marker hidden', '▲', this.root), label: h('div', 'marker-dist hidden', '', this.root) };
+    this.goalMarker = { el: h('div', 'marker goal hidden', '▲', this.root), label: h('div', 'marker-dist goal hidden', '', this.root) };
     this.objective = h('div', 'hud-objective', '', this.root);
     this.letters = h('div', 'hud-letters hidden', '', tl);
 
@@ -134,21 +134,52 @@ export class Hud {
     this.subs.classList.remove('on');
   }
 
-  private placeMarker(el: HTMLElement, pt: { x: number; y: number } | null): void {
-    show(el, !!pt);
-    if (!pt) return;
-    const off = pt.x < 0 || pt.y < 0 || pt.x > innerWidth || pt.y > innerHeight;
-    const cx = innerWidth / 2;
-    const cy = innerHeight / 2;
-    const ang = Math.atan2(pt.y - cy, pt.x - cx);
-    const r = Math.min(cx, cy) * 0.82;
-    const mx = off ? cx + Math.cos(ang) * r : pt.x;
-    const my = off ? cy + Math.sin(ang) * r : pt.y - 40 * this.zoom;
+  /**
+   * Стрелка к цели. Цель на экране — стрелка над ней. За краем — стрелка у края экрана
+   * (на луче из центра, с отступом от рамки) смотрит наружу, рядом — сколько метров идти.
+   */
+  private placeMarker(m: { el: HTMLElement; label: HTMLElement }, pt: { x: number; y: number; dist: number } | null): void {
+    show(m.el, !!pt);
+    if (!pt) {
+      show(m.label, false);
+      return;
+    }
+    const W = innerWidth;
+    const H = innerHeight;
+    const pad = 48 * this.zoom;
+    const off = pt.x < pad * 0.5 || pt.y < pad * 0.5 || pt.x > W - pad * 0.5 || pt.y > H - pad * 0.5;
+    const cx = W / 2;
+    const cy = H / 2;
+    const dx = pt.x - cx;
+    const dy = pt.y - cy;
+    const ang = Math.atan2(dy, dx);
+    let mx = pt.x;
+    let my = pt.y - 40 * this.zoom;
+    if (off) {
+      // пересечение луча из центра с прямоугольником экрана, ужатым на отступ
+      const tx = Math.abs(dx) > 1e-3 ? (cx - pad) / Math.abs(dx) : Infinity;
+      const ty = Math.abs(dy) > 1e-3 ? (cy - pad) / Math.abs(dy) : Infinity;
+      const k = Math.min(tx, ty);
+      mx = cx + dx * k;
+      my = cy + dy * k;
+    }
     // HUD увеличен через CSS zoom — экранные пиксели переводим в его единицы
-    el.style.transform = `translate(${mx / this.zoom}px, ${my / this.zoom}px) rotate(${off ? ang + Math.PI / 2 : Math.PI}rad)`;
+    const z = this.zoom;
+    m.el.style.transform = `translate(${mx / z}px, ${my / z}px) rotate(${off ? ang + Math.PI / 2 : Math.PI}rad)`;
+    show(m.label, off);
+    if (off) {
+      // подпись — сбоку от стрелки, в сторону центра по горизонтали: у нижнего края не налезает
+      // на субтитры, у боковых — не уходит за экран
+      const side = Math.abs(dx) < 1 ? 1 : -Math.sign(dx);
+      const lx = mx + side * 36 * z;
+      const ly = my;
+      const d = pt.dist < 10 ? Math.round(pt.dist) : Math.round(pt.dist / 5) * 5;
+      this.set(m.label, `${d} м`);
+      m.label.style.transform = `translate(${lx / z}px, ${ly / z}px) translate(-50%, -50%)`;
+    }
   }
 
-  update(w: World, dt: number, touch: boolean, hutScreen: { x: number; y: number }, goalScreen: { x: number; y: number } | null): void {
+  update(w: World, dt: number, touch: boolean, hutScreen: { x: number; y: number; dist: number }, goalScreen: { x: number; y: number; dist: number } | null): void {
     const p = w.player;
     const hours = w.clockHours % 24;
     const hh = Math.floor(hours);

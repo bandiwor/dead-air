@@ -539,8 +539,16 @@ export class GameRenderer {
   }
 
   /** Экранные координаты точки мира (CSS-пиксели) — для прицела мышью и подсказок. */
+  /**
+   * Мировая точка → экран. Точка позади плоскости камеры (далеко «внизу» карты) при обычной
+   * проекции отражается и уходит в противоположную сторону — её прижимаем к ближней плоскости:
+   * направление сохраняется, а сама точка оказывается далеко за краем экрана.
+   */
   project(x: number, y: number, z: number): { x: number; y: number } {
-    this.tmp.set(x, y, z).project(this.camera);
-    return { x: (this.tmp.x * 0.5 + 0.5) * window.innerWidth, y: (-this.tmp.y * 0.5 + 0.5) * window.innerHeight };
+    const cam = this.camera;
+    const v = this.tmp.set(x, y, z).applyMatrix4(cam.matrixWorldInverse);
+    if (v.z > -cam.near) v.z = -cam.near;
+    v.applyMatrix4(cam.projectionMatrix);
+    return { x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight };
   }
 }

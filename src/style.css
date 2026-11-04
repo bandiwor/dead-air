@@ -401,6 +401,22 @@ button {
   text-align: center;
 }
 .marker.goal { color: var(--phos); }
+/* расстояние до цели за краем экрана: мелко, разреженно, на тёмной плашке — читается на любом фоне */
+.marker-dist {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 2px 6px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--sodium);
+  background: rgba(5, 8, 11, 0.6);
+  border: 1px solid rgba(232, 163, 61, 0.3);
+  will-change: transform;
+}
+.marker-dist.goal { color: var(--phos); border-color: var(--line); }
 .hud-prompt.rule { color: var(--phos); }
 .hud-prompt.rule .bar-fill { background: var(--phos); }
 .subs.style-3 { color: var(--phos); font-style: italic; letter-spacing: 0.16em; background: rgba(5, 8, 11, 0.75); text-shadow: 0 0 6px rgba(127, 214, 194, 0.6); }
