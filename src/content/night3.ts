@@ -181,6 +181,10 @@ export const NIGHT3B: NightDef = {
     { id: 'choirP2', when: { flag: 'choir:2' }, do: [{ line: 'n3b.choirP2' }] },
     { id: 'choirP3', when: { flag: 'choir:3' }, do: [{ line: 'n3b.choirP3' }] },
     { id: 'keyFound', when: { flag: 'hasKey' }, do: [{ line: 'n3b.keyFound' }] },
+    // подсказки: что спрятано в темноте и где — без них последние буквы почти не найти
+    { id: 'scratchHint', when: { near: [NAME_LETTER[0], NAME_LETTER[1], 6], notFlag: 'letters:4' }, do: [{ wait: 1.5 }, { line: 'n3b.scratchHint' }] },
+    { id: 'trailHint', when: { near: [RAVINE_MID[0], RAVINE_MID[1], 7], notFlag: 'broke:3' }, do: [{ wait: 3 }, { line: 'n3b.trailHint' }] },
+    { id: 'nameMissing', when: { flags: ['choirDown', 'hasKey'], notFlag: 'letters:4' }, do: [{ wait: 3 }, { line: 'n3b.nameMissing' }] },
     {
       id: 'choir',
       when: { near: [CHOIR_AT[0], CHOIR_AT[1], 9] },
@@ -190,7 +194,7 @@ export const NIGHT3B: NightDef = {
     // ключ на дне + Хор замолчал → можно решать
     {
       id: 'decide', when: { flags: ['choirDown', 'hasKey'] },
-      do: [{ enable: 'open' }, { enable: 'throw' }, { objective: 'obj.decide', marker: { at: [SLUICE.x, SLUICE.z] } }],
+      do: [{ enable: 'open' }, { enable: 'throw' }, { objective: 'obj.decide', marker: { at: [SLUICE.x, SLUICE.z] } }, { line: 'n3b.decideHint' }],
     },
     { id: 'nameReady', when: { flags: ['letters:4', 'choirDown'] }, do: [{ enable: 'name' }, { line: 'n3b.nameReady' }] },
     { id: 'sanity', when: { sanityBelow: 30 }, do: [{ line: 'n2.sanity' }] },
@@ -222,15 +226,15 @@ export const NIGHT3B: NightDef = {
     // в луже на дне Глядня — лодка и мальчик в ней
     { id: 'reflBoat', prompt: 'prompt.reflRead', rule: false, at: { x: WORLD.pond.x, z: WORLD.pond.z }, r: 2, hold: 1, enabled: true, once: true, reflect: true, effects: [{ note: 'note.reflBoat' }] },
     {
-      id: 'open', prompt: 'prompt.sluice', rule: false, at: { x: SLUICE.x + 0.8, z: SLUICE.z + 1 }, r: 1.1, hold: 4.5, enabled: false, once: true, finale: true,
+      id: 'open', prompt: 'prompt.sluice', rule: false, at: { x: SLUICE.x + 0.8, z: SLUICE.z + 1 }, r: 1.1, hold: 4.5, enabled: false, once: true, finale: true, glint: true,
       effects: [{ flag: 'end:flood' }, { line: 'end.flood.0' }, { wait: 4 }, { dawn: true }],
     },
     {
-      id: 'throw', prompt: 'prompt.throwKey', rule: false, at: { x: SLUICE.x - 1.6, z: SLUICE.z + 2 }, r: 1.1, hold: 4.5, enabled: false, once: true, finale: true,
+      id: 'throw', prompt: 'prompt.throwKey', rule: false, at: { x: SLUICE.x - 1.6, z: SLUICE.z + 2 }, r: 1.1, hold: 4.5, enabled: false, once: true, finale: true, glint: true,
       effects: [{ flag: 'end:loop' }, { line: 'end.loop.0' }, { wait: 4 }, { dawn: true }],
     },
     {
-      id: 'name', prompt: 'prompt.name', rule: true, at: { x: SLUICE.x - 0.2, z: SLUICE.z + 3.2 }, r: 1.2, hold: 4.5, enabled: false, once: true, finale: true,
+      id: 'name', prompt: 'prompt.name', rule: true, at: { x: SLUICE.x - 0.2, z: SLUICE.z + 3.2 }, r: 1.2, hold: 4.5, enabled: false, once: true, finale: true, glint: true,
       effects: [{ flag: 'broke:5' }, { flag: 'end:name' }, { line: 'end.name.0' }, { wait: 4.5 }, { dawn: true }],
     },
   ],
