@@ -265,7 +265,11 @@ button {
 .buttons .btn-voice { display: none; right: calc(96px + var(--safe-r)); bottom: calc(240px + var(--safe-b)); border-color: var(--phos); color: var(--phos); }
 .buttons.voiced .btn-voice { display: block; }
 .buttons.unarmed .btn-swap, .buttons.unarmed .btn-throw, .buttons.unarmed .btn-reload { display: none; }
-.hud-letters { margin-top: 6px; color: var(--phos); letter-spacing: 0.28em; font-size: 13px; opacity: 0.85; }
+.hud-letters { margin-top: 6px; color: var(--phos); font: italic 17px/1 Georgia, 'Times New Roman', serif; letter-spacing: 0.35em; opacity: 0.8; text-shadow: 0 0 8px rgba(160, 255, 220, 0.35); }
+.hud-letters .g { opacity: 0; }
+.hud-letters .m { opacity: 0.9; filter: blur(0.3px); }
+.hud-letters.fresh .m { animation: memory 3.5s ease-out; }
+@keyframes memory { 0% { opacity: 0; filter: blur(6px); } 30% { opacity: 1; filter: blur(0); text-shadow: 0 0 16px #bfffe8; } 100% { opacity: 0.9; filter: blur(0.3px); } }
 
 /* ---------- экраны ---------- */
 .screens { position: absolute; inset: 0; pointer-events: none; }

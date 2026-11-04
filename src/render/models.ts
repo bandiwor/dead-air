@@ -775,6 +775,12 @@ export function itemGeometry(id: string): THREE.BufferGeometry {
     b.box(0.3, 0.05, 0.04, { pos: [0, 0.07, 0.06], color: 0x2a2420 });
     b.box(0.3, 0.05, 0.04, { pos: [0, 0.07, -0.06], color: 0x2a2420 });
     b.box(0.012, 0.012, 0.14, { pos: [0, 0.16, 0.2], rot: [0.5, 0, 0], color: 0xc8c0a0 });
+  } else if (id === 'reel') {
+    // бобина с плёнкой: два диска, между ними — тёмный рулон
+    for (const y of [0.02, 0.1]) b.add(new THREE.CylinderGeometry(0.17, 0.17, 0.012, 18), { pos: [0, y, 0], color: 0x8a8a84, jitter: 0.05 });
+    b.add(new THREE.CylinderGeometry(0.14, 0.14, 0.07, 18), { pos: [0, 0.06, 0], color: 0x2a2018, jitter: 0.1 });
+    b.add(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 8), { pos: [0, 0.06, 0], color: 0xb0aca0 });
+    b.box(0.2, 0.004, 0.03, { pos: [0.18, 0.004, 0.05], rot: [0, 0.4, 0], color: 0x2a2018 });
   } else if (id === 'battery') {
     for (const s of [-1, 1]) {
       b.add(new THREE.CylinderGeometry(0.04, 0.04, 0.14, 10), { pos: [s * 0.05, 0.07, 0], color: 0x2a2a2c, jitter: 0.1 });

@@ -39,7 +39,10 @@ export const NIGHT2: NightDef = {
   duration: 540,
   startHour: 22,
   endHour: 6,
-  reelSeconds: 80,
+  reelSeconds: 130,
+  reels: 1,
+  // стучать можно, открывать — нет: пока пункт 2 цел, в дома они не входят
+  wards: [{ rule: 1, kind: 'pole' }, { rule: 2, kind: 'houses' }, { rule: 3, kind: 'trail' }],
   fog: 0.042,
   // вода: холоднее, зеленее, бледнее; морось и туман гуще
   look: { shadow: [0.55, 0.8, 0.9], highlight: [0.95, 1.0, 0.94], desat: 0.18, mist: 1.6, rain: true },
@@ -61,33 +64,19 @@ export const NIGHT2: NightDef = {
   dawnTruth: 'cut2.dawn.3b',
   dawnTitle: 'dawn2.title',
   dawnSub: 'dawn2.sub',
+  // Три волны; между ними — вода поднимается, и в тишине приходит процессия.
   waves: [
-    { at: 20, pulse: 2.4, spawns: [{ kind: 'unseeing', count: 3, from: 'pond' }, { kind: 'whisperer', count: 4, from: 'crevice' }], startLine: 'n2.w1' },
+    { at: 25, pulse: 2.4, spawns: [{ kind: 'unseeing', count: 3, from: 'pond' }, { kind: 'whisperer', count: 4, from: 'crevice' }], startLine: 'n2.w1' },
     {
-      at: 100, pulse: 1.9,
-      spawns: [{ kind: 'unseeing', count: 5, from: 'pond' }, { kind: 'whisperer', count: 5, from: 'forest' }],
-      startLine: 'n2.w2', endLine: 'n1.w2e', reward: { weapon: 'rifle', house: 3 },
+      at: 240, pulse: 1.8,
+      spawns: [{ kind: 'mute', count: 1, from: 'crevice' }, { kind: 'unseeing', count: 6, from: 'pond' }, { kind: 'whisperer', count: 5, from: 'forest' }],
+      startLine: 'n2.w3', endLine: 'n1.w2e', reward: { weapon: 'rifle', house: 3 },
     },
     {
-      at: 185, pulse: 1.8,
-      spawns: [{ kind: 'mute', count: 1, from: 'crevice' }, { kind: 'unseeing', count: 5, from: 'forest' }, { kind: 'whisperer', count: 4, from: 'forest' }],
-      startLine: 'n2.w3', endLine: 'n1.w3e', reward: { weapon: 'smg', house: 0 },
-    },
-    {
-      at: 270, pulse: 1.5,
-      spawns: [{ kind: 'echo', count: 1, from: 'behind' }, { kind: 'unseeing', count: 7, from: 'pond' }, { kind: 'whisperer', count: 5, from: 'crevice' }],
-      startLine: 'n2.w4',
-    },
-    {
-      at: 360, pulse: 1.3,
-      spawns: [{ kind: 'mute', count: 2, from: 'pond' }, { kind: 'unseeing', count: 8, from: 'forest' }, { kind: 'whisperer', count: 6, from: 'forest' }],
-      startLine: 'n2.w5',
-    },
-    {
-      at: 450, pulse: 1.05,
+      at: 420, pulse: 1.25,
       spawns: [
-        { kind: 'echo', count: 1, from: 'behind' }, { kind: 'unseeing', count: 10, from: 'pond' },
-        { kind: 'mute', count: 1, from: 'crevice' }, { kind: 'whisperer', count: 8, from: 'forest' },
+        { kind: 'echo', count: 1, from: 'behind' }, { kind: 'unseeing', count: 8, from: 'pond' },
+        { kind: 'mute', count: 1, from: 'crevice' }, { kind: 'whisperer', count: 6, from: 'forest' },
       ],
       startLine: 'n2.w6',
     },
@@ -97,6 +86,9 @@ export const NIGHT2: NightDef = {
     { id: 'start', when: { t: 2 }, do: [{ line: 'n2.start' }, { wait: 4 }, { line: 'n2.reflectHint' }] },
     { id: 'turned', when: { flag: 'turnedAway' }, do: [{ line: 'n2.turned' }] },
     { id: 'rising', when: { t: 200 }, do: [{ line: 'n2.rising' }] },
+    { id: 'lull1', when: { t: 110 }, do: [{ line: 'n2.w2' }] },
+    { id: 'lull2', when: { t: 350 }, do: [{ scare: 'steps' }, { wait: 2 }, { line: 'n2.w4' }, { wait: 2 }, { spawn: 'echo', count: 1, at: 'behind' }] },
+    { id: 'lull3', when: { t: 390 }, do: [{ line: 'n2.w5' }] },
     { id: 'broke2', when: { flag: 'broke:2' }, do: [{ line: 'n2.broke2' }] },
     { id: 'broke3', when: { flag: 'broke:3' }, do: [{ line: 'n1.broke3' }] },
     { id: 'deadair', when: { flag: 'deadAir' }, do: [{ line: 'n2.deadair' }] },
@@ -119,7 +111,7 @@ export const NIGHT2: NightDef = {
     // процессия: одиннадцать выходят из воды и идут к радиоузлу — домой. Держите их в луче.
     {
       id: 'procession',
-      when: { flag: 'wave:3:end' },
+      when: { t: 165 },
       do: [
         { scare: 'duck' }, { wait: 1 }, { line: 'n2.proc1' }, { appear: 'procession' }, { objective: 'obj.procession', marker: null },
         { wait: 4 }, { line: 'n2.proc2' }, { wait: 50 }, { objective: 'obj.air', marker: null },
@@ -129,7 +121,7 @@ export const NIGHT2: NightDef = {
     // перекличка: громкоговоритель читает дворы — и ждёт двенадцатого. Можно ответить.
     {
       id: 'rollcall',
-      when: { flag: 'wave:4:end' },
+      when: { flag: 'wave:2:end' },
       do: [
         { scare: 'names' }, { line: 'n2.names1', style: 1 }, { enable: 'answer' }, { wait: 4 },
         { line: 'n2.names2', style: 1 }, { wait: 4 }, { line: 'n2.names3', style: 1 }, { wait: 12 }, { disable: 'answer' },

@@ -3,7 +3,7 @@ import { clamp } from '../core/math';
 import { buildLayout, type Layout } from '../proc/layout';
 import { WORLD, isWater, water } from '../proc/terrain';
 import { WEAPONS } from '../content/weapons';
-import type { NightDef } from '../content/night';
+import type { NightDef, WardKind } from '../content/night';
 import { Kind } from '../content/enemies';
 import { Statics, boxOf } from './collision';
 import { Barrel, Enemy, Flare, Interactable, Pickup, Projectile, type EvType, type InputFrame, type Player, type SimEvent } from './types';
@@ -102,6 +102,9 @@ export class World {
   playerHouse = -1;
   fragments = 0;
   lastFragT = -99;
+  /** Накопленный шум выстрелов: из леса на него приходят новые. */
+  heat = 0;
+  private readonly wardOn: Record<'houses' | 'pole', boolean> = { houses: false, pole: false };
   readonly notesRead: string[] = [];
   /** Текущая задача и метка на экране. */
   objective = '';
@@ -133,7 +136,7 @@ export class World {
       reserve: WEAPONS.map((w) => w.startReserve),
       owned: WEAPONS.map((w) => cfg.night.startWeapons.includes(w.id)),
       cooldown: 0, reload: 0, dynamite: 3, throwCd: 0, stillT: 0, moving: false, invuln: 0,
-      stepAcc: 0, reel: 0, holdingReel: false, inLight: true, lastNoiseT: -99, canReel: false,
+      stepAcc: 0, reel: 0, holdingReel: false, inLight: true, lastNoiseT: -99, canReel: false, noReel: false, reels: cfg.night.reels ?? 1,
       focus: -1, focusHold: 0, actionPrev: false, holding: false, voiceCd: 0, battery: 1, fired: 0, aimHold: 0, breath: 1, lampCovered: false,
     };
     this.doorOpen = this.statics.doorOpen;
@@ -247,6 +250,13 @@ export class World {
   }
 
   /** Обрывок правды: следующий по порядку. */
+  /** Держит ли Наказ эту защиту: пункт не нарушен (а для столба — ещё и эфир жив). */
+  ward(kind: WardKind): boolean {
+    const wd = this.cfg.night.wards?.find((x) => x.kind === kind);
+    if (!wd || this.flags.has(`broke:${wd.rule}`)) return false;
+    return kind !== 'pole' || !this.deadAir;
+  }
+
   addFragment(x: number, y: number, z: number): void {
     const list = this.cfg.night.fragments;
     if (this.fragments >= list.length) return;
@@ -417,6 +427,13 @@ export class World {
     this.narrative.update(dt);
 
     this.intensity = clamp(this.intensity * Math.exp(-0.16 * dt), 0, 1);
+    this.heat = Math.max(0, this.heat - dt * 0.12);
+    // защита Наказа пропала — сказать об этом один раз
+    for (const k of ['houses', 'pole'] as const) {
+      const on = this.ward(k);
+      if (this.wardOn[k] && !on) this.emit('line', this.player.x, 1, this.player.z, 0, 0, 0, `ward.${k}.lost`);
+      this.wardOn[k] = on;
+    }
 
     if (this.time >= this.cfg.night.duration && this.state === 'play') {
       this.state = 'dawn';

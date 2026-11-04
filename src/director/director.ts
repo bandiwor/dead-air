@@ -73,6 +73,16 @@ export class Director {
       this.endWave();
     }
 
+    // --- на выстрелы приходят: каждые ~6 «громких» выстрелов — ещё один из леса ---
+    if (w.heat >= 6 && w.aliveEnemies() < 34) {
+      w.heat -= 6;
+      this.spawnFrom(KIND_BY_ID.whisperer, 'forest');
+      if (!w.flags.has('heardShots')) {
+        w.flags.add('heardShots');
+        w.emit('line', 0, 0, 0, 0, 0, 0, 'hint.heat');
+      }
+    }
+
     // --- отложенные действия ---
     for (let i = this.pending.length - 1; i >= 0; i--) {
       const p = this.pending[i]!;
@@ -118,7 +128,10 @@ export class Director {
     const a = spots[0];
     const b = spots[1];
     const c = spots[2];
-    if (a) this.dropPickup(0, 0, a.s.x + 0.6, a.s.z);
+    // дальше всех — запасная бобина: эфир надо добыть, а не просто дождаться
+    const radio = !w.cfg.night.noRadio && w.cfg.night.reelSeconds < 1e6;
+    if (a) this.dropPickup(radio ? 5 : 0, 0, a.s.x + 0.6, a.s.z);
+    if (a && radio && this.waveIndex >= 1) this.dropPickup(0, 0, a.s.x - 0.4, a.s.z + 0.4);
     if (b) this.dropPickup(this.waveIndex % 2 === 0 ? 2 : 3, 0, b.s.x - 0.6, b.s.z);
     if (c && this.waveIndex >= 2) this.dropPickup(0, 0, c.s.x, c.s.z + 0.5);
     // без радио главный ресурс — батарейки для фонаря

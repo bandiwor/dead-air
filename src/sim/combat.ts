@@ -20,6 +20,8 @@ export function fireWeapon(w: World): void {
   w.emit('shot', mx, p.y + 1.15, mz, p.weapon, p.yaw);
   w.noise(p.x, p.z, wd.noise);
   p.lastNoiseT = w.time;
+  // каждый выстрел слышно далеко: шум копится и приводит новых из леса
+  w.heat += wd.noise * wd.pellets ** 0.25;
   // отдача
   p.kx -= Math.cos(p.yaw) * wd.knock * 0.35;
   p.kz -= Math.sin(p.yaw) * wd.knock * 0.35;
@@ -111,7 +113,13 @@ export function echoFire(w: World, e: Enemy, weapon: number, yaw: number): void 
   }
   if (dealt > 0) {
     // пули памяти слабее настоящих: не больше 10 за выстрел
-    damagePlayer(w, Math.min(10, dealt), e.x, e.z, 1.5);
+    // пока вы не ходили по своим следам — прошлое бьёт вполсилы
+    const k = w.ward('trail') ? 0.5 : 1;
+    damagePlayer(w, Math.min(10, dealt) * k, e.x, e.z, 1.5);
+    if (k < 1 && !w.flags.has('ward:trail')) {
+      w.flags.add('ward:trail');
+      w.emit('line', e.x, 1, e.z, 0, 0, 0, 'ward.trail');
+    }
     w.flags.add('echoShot');
   }
 }
@@ -155,8 +163,10 @@ export function killEnemy(w: World, e: Enemy, explosive: boolean): void {
     w.flags.delete('lightsOut');
     w.player.battery = Math.max(w.player.battery, 0.6);
   }
-  // В тишине умирающий шептун договаривает то, что не сказал. Радио это заглушает.
-  if (w.deadAir && e.kind === Kind.Whisperer && w.time - w.lastFragT > 3.5) {
+  // Убитый в темноте шептун договаривает то, что не сказал, — его запоминаешь.
+  // Убитый в луче просто исчезает. Радио у столба заглушает и это.
+  const remembered = !e.litTorch && (w.deadAir || !e.litAny);
+  if (remembered && e.kind === Kind.Whisperer && w.time - w.lastFragT > 3.5) {
     w.addFragment(e.x, e.y + 0.6, e.z);
     w.player.sanity = Math.max(0, w.player.sanity - 2);
   }

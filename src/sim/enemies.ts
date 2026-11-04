@@ -106,6 +106,8 @@ export function updateEnemies(w: World, dt: number): void {
       e.vx = e.vz = 0;
       continue;
     }
+    const ox = e.x;
+    const oz = e.z;
     switch (e.kind) {
       case Kind.Whisperer:
         whisperer(w, e, dist, nearFlare, dt);
@@ -127,11 +129,39 @@ export function updateEnemies(w: World, dt: number): void {
         break;
     }
     if (!e.active) continue;
+    guardWards(w, e, ox, oz);
     // фигура «на воде» стоит на поверхности пруда
     e.y = e.kind === Kind.Apparition && e.delay === 1 ? water.level : Math.max(heightAt(e.x, e.z), onPierY(e));
   }
 
   separate(w);
+}
+
+/** Наказ держит тех, кто его держит: пока пункт цел — порог дома и свет столба непроходимы. */
+function guardWards(w: World, e: Enemy, ox: number, oz: number): void {
+  if (e.kind === Kind.Echo || e.kind === Kind.Apparition || e.kind === Kind.Choir) return;
+  if (w.ward('houses') && houseAt(w.layout.houses, ox, oz) < 0 && houseAt(w.layout.houses, e.x, e.z) >= 0) {
+    e.x = ox;
+    e.z = oz;
+    if (w.playerHouse >= 0 && !w.flags.has('ward:houses')) {
+      w.flags.add('ward:houses');
+      w.emit('line', e.x, 1, e.z, 0, 0, 0, 'ward.houses');
+    }
+  }
+  if (e.kind === Kind.Mute && w.ward('pole')) {
+    const px = w.layout.pole.x;
+    const pz = w.layout.pole.z;
+    const d = Math.hypot(e.x - px, e.z - pz);
+    if (d < 7) {
+      const k = 7 / (d || 1);
+      e.x = px + (e.x - px) * k;
+      e.z = pz + (e.z - pz) * k;
+      if (Math.hypot(w.player.x - px, w.player.z - pz) < 7 && !w.flags.has('ward:pole')) {
+        w.flags.add('ward:pole');
+        w.emit('line', e.x, 1, e.z, 0, 0, 0, 'ward.pole');
+      }
+    }
+  }
 }
 
 function onPierY(e: Enemy): number {

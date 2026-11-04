@@ -105,6 +105,6 @@ describe('ночь вторая', () => {
       w.clearEvents();
       w.player.hp = 100;
     }
-    expect(w.flags.has('wave:3:start')).toBe(true);
+    expect(w.flags.has('wave:2:start')).toBe(true);
   });
 });

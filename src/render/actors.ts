@@ -107,6 +107,7 @@ export class ActorsView {
       2: new THREE.InstancedMesh(itemGeometry('dynamite'), lootMat, 12),
       3: new THREE.InstancedMesh(itemGeometry('med'), lootMat, 12),
       4: new THREE.InstancedMesh(itemGeometry('battery'), lootMat, 12),
+      5: new THREE.InstancedMesh(itemGeometry('reel'), lootMat, 12),
     };
     this.dynamite = new THREE.InstancedMesh(dynamiteGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), 16);
     for (const m of [...this.groundGuns, ...Object.values(this.groundItems), this.dynamite]) {
@@ -269,7 +270,7 @@ export class ActorsView {
 
     // находки
     const gc = this.groundGuns.map(() => 0);
-    const ic: Record<number, number> = { 0: 0, 2: 0, 3: 0, 4: 0 };
+    const ic: Record<number, number> = { 0: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     for (const pk of w.pickups) {
       if (!pk.active) continue;
       // лежит на земле и медленно поворачивается — чтобы глаз зацепился

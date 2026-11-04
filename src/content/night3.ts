@@ -164,6 +164,10 @@ export const NIGHT3B: NightDef = {
     { id: 'battery', when: { t: 70 }, do: [{ line: 'n3b.battery' }] },
     // «Н»: Отголосок в Щели — пройдёте назад по своему следу, и он, рассыпаясь, покажет камень
     { id: 'echoLetter', when: { flag: 'broke:3' }, do: [{ line: 'n3b.echoLetter' }, { enable: 'letter3' }] },
+    // …или дать прошлому догнать себя: стоять в Щели, пока Отголосок не войдёт в вас
+    { id: 'echoMergedLetter', when: { flag: 'echoMerged', notFlag: 'broke:3' }, do: [{ line: 'n3b.echoMerged' }, { enable: 'letter3' }] },
+    // мальчик в лодке показывает, куда смотреть дальше — тропа без нарушения пункта 4
+    { id: 'reflBoatNext', when: { flag: 'reflBoat', notFlag: 'broke:4' }, do: [{ wait: 1.5 }, { line: 'n3b.reflNext' }, { enable: 'reflRuin' }] },
     // вход в Щель: тесно, темно; там живёт тишина
     {
       id: 'ravine',
@@ -207,24 +211,35 @@ export const NIGHT3B: NightDef = {
       id: 'callPier', prompt: 'prompt.call', rule: true, at: 'pierEnd', r: 2.2, hold: 1.4, enabled: true, once: true,
       effects: [
         { flag: 'broke:4' }, { line: 'n3b.call1' }, { scare: 'duck' }, { wait: 1.6 }, { appear: 'boy' }, { line: 'n3b.call2' },
-        { enable: 'letter1' }, { objective: 'obj.ruin', marker: { at: [YARD12.x, YARD12.z] } },
+        { enable: 'letter1' }, { disable: 'reflRuin' }, { objective: 'obj.ruin', marker: { at: [YARD12.x, YARD12.z] } },
       ],
     },
-    { id: 'letter1', prompt: 'prompt.read', rule: false, at: { x: YARD12.x, z: YARD12.z }, r: 2.2, hold: 0, enabled: false, once: true, glint: true, effects: [{ note: 'note.ruin' }, { letter: 'В' }, { objective: 'obj.letters', marker: null }] },
+    { id: 'letter1', prompt: 'prompt.read', rule: false, at: { x: YARD12.x, z: YARD12.z }, r: 2.2, hold: 0, enabled: false, once: true, glint: true, effects: [{ letter: 'В' }, { line: 'mem.v', style: 2 }, { wait: 3.5 }, { note: 'note.ruin' }, { objective: 'obj.letters', marker: null }] },
     // «А» — пункт 2: постучать в радиоузел — в дом Ивашовых. Изнутри отвечает плёнка — голос матери.
     {
       id: 'knockHut', prompt: 'prompt.knock3b', rule: true, at: 'hutDoorSide', r: 1.4, hold: 0, enabled: true, once: true,
-      effects: [{ flag: 'broke:2' }, { line: 'n3b.knock1' }, { wait: 2.4 }, { scare: 'speaker' }, { line: 'n3b.knock2', style: 2 }, { enable: 'letter2' }],
+      effects: [{ flag: 'broke:2' }, { disable: 'listenHut' }, { line: 'n3b.knock1' }, { wait: 2.4 }, { scare: 'speaker' }, { line: 'n3b.knock2', style: 2 }, { enable: 'letter2' }],
     },
-    { id: 'letter2', prompt: 'prompt.read', rule: false, at: 'hutSide', r: 1.3, hold: 0, enabled: false, once: true, glint: true, effects: [{ note: 'note.reel' }, { letter: 'А' }] },
+    { id: 'letter2', prompt: 'prompt.read', rule: false, at: 'hutSide', r: 1.3, hold: 0, enabled: false, once: true, glint: true, effects: [{ letter: 'А' }, { line: 'mem.a', style: 2 }, { wait: 3.5 }, { note: 'note.reel' }] },
     // «Н» — пункт 3: появится, когда вы пройдёте по своим следам (см. бит echoLetter)
-    { id: 'letter3', prompt: 'prompt.read', rule: false, at: { x: RAVINE_MID[0], z: RAVINE_MID[1] }, r: 1.6, hold: 0, enabled: false, once: true, glint: true, effects: [{ note: 'note.letterCave' }, { letter: 'Н' }] },
+    { id: 'letter3', prompt: 'prompt.read', rule: false, at: { x: RAVINE_MID[0], z: RAVINE_MID[1] }, r: 1.6, hold: 0, enabled: false, once: true, glint: true, effects: [{ letter: 'Н' }, { line: 'mem.n', style: 2 }, { wait: 3.5 }, { note: 'note.letterCave' }] },
     // «Я» — на заслонке, в темноте: проступает только от крика
-    { id: 'letter4', prompt: 'prompt.read', rule: false, at: { x: NAME_LETTER[0] + 1.2, z: NAME_LETTER[1] }, r: 1.6, hold: 0, enabled: true, once: true, voice: true, effects: [{ note: 'note.letterSluice' }, { letter: 'Я' }] },
+    { id: 'letter4', prompt: 'prompt.read', rule: false, at: { x: NAME_LETTER[0] + 1.2, z: NAME_LETTER[1] }, r: 1.6, hold: 0, enabled: true, once: true, voice: true, effects: [{ letter: 'Я' }, { line: 'mem.ya', style: 2 }, { wait: 3.5 }, { note: 'note.letterSluice' }] },
     // ключ на дне Щели — двадцать лет назад его уронил мальчик. Видно только криком.
     { id: 'key3b', prompt: 'prompt.takeKey3b', rule: false, at: { x: KEY_BOTTOM[0] - 0.9, z: KEY_BOTTOM[1] }, r: 1.6, hold: 0.8, enabled: true, once: true, voice: true, effects: [{ flag: 'hasKey' }, { note: 'note.keyFound' }] },
     // в луже на дне Глядня — лодка и мальчик в ней
-    { id: 'reflBoat', prompt: 'prompt.reflRead', rule: false, at: { x: WORLD.pond.x, z: WORLD.pond.z }, r: 2, hold: 1, enabled: true, once: true, reflect: true, effects: [{ note: 'note.reflBoat' }] },
+    { id: 'reflBoat', prompt: 'prompt.reflRead', rule: false, at: { x: WORLD.pond.x, z: WORLD.pond.z }, r: 2, hold: 1, enabled: true, once: true, reflect: true, effects: [{ flag: 'reflBoat' }, { note: 'note.reflBoat' }] },
+    // Без нарушений — тоже можно, только дольше и страшнее.
+    // «В»: досмотреть в воде, куда показывает мальчик, — почти на последнем вдохе.
+    {
+      id: 'reflRuin', prompt: 'prompt.reflLong', rule: false, at: { x: WORLD.pond.x, z: WORLD.pond.z }, r: 2, hold: 2.9, enabled: false, once: true, reflect: true,
+      effects: [{ line: 'n3b.reflRuin' }, { enable: 'letter1' }, { disable: 'callPier' }, { objective: 'obj.ruin', marker: { at: [YARD12.x, YARD12.z] } }],
+    },
+    // «А»: не стучать, а сидеть у двери и слушать, пока за ней не заговорят. Долго — и спиной к деревне.
+    {
+      id: 'listenHut', prompt: 'prompt.listenDoor', rule: false, at: 'hutSide', r: 1.4, hold: 9, enabled: true, once: true,
+      effects: [{ line: 'n3b.listen1', style: 2 }, { enable: 'letter2' }, { disable: 'knockHut' }],
+    },
     {
       id: 'open', prompt: 'prompt.sluice', rule: false, at: { x: SLUICE.x + 0.8, z: SLUICE.z + 1 }, r: 1.1, hold: 4.5, enabled: false, once: true, finale: true, glint: true,
       effects: [{ flag: 'end:flood' }, { line: 'end.flood.0' }, { wait: 4 }, { dawn: true }],

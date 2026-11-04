@@ -25,6 +25,7 @@ export class Hud {
   private readonly goalMarker: { el: HTMLElement; label: HTMLElement };
   private readonly objective: HTMLElement;
   private readonly letters: HTMLElement;
+  private lettersKey = '-';
   private voiceBtn!: HTMLElement;
   private readonly breath: HTMLElement;
   private readonly breathFill: HTMLElement;
@@ -199,7 +200,8 @@ export class Hud {
     const night = w.cfg.night;
     // без радио полоса эфира становится зарядом фонаря
     const level = night.battery ? p.battery : w.air;
-    this.set(this.airLabel, night.battery ? t('hud.battery') : w.deadAir ? t('hud.deadAir') : t('hud.air'));
+    const reels = night.battery || night.noRadio ? '' : ` · ${t('hud.reels', { n: p.reels })}`;
+    this.set(this.airLabel, (night.battery ? t('hud.battery') : w.deadAir ? t('hud.deadAir') : t('hud.air')) + reels);
     this.air.classList.toggle('low', level < 0.25);
     this.air.classList.toggle('dead', !night.battery && w.deadAir);
     show(this.air, !!night.battery || (!night.noRadio && !night.child));
@@ -215,10 +217,16 @@ export class Hud {
     this.voiceBtn.classList.toggle('on', !!night.child && p.lampCovered);
     show(this.letters, !!night.voice);
     if (night.voice) {
-      const name = 'ВАНЯ';
-      let s = `${t('hud.name')}: `;
-      for (const ch of name) s += w.letters.includes(ch) ? `${ch} ` : '_ ';
-      this.set(this.letters, s.trim());
+      // не счётчик, а полузабытое слово: вспомненное проступает на своём месте, остальное — пустота
+      if (this.lettersKey !== w.letters) {
+        this.lettersKey = w.letters;
+        let html = '';
+        for (const ch of 'ВАНЯ') html += w.letters.includes(ch) ? `<span class="m">${ch}</span>` : `<span class="g">${ch}</span>`;
+        this.letters.innerHTML = w.letters ? html : '';
+        this.letters.classList.remove('fresh');
+        void this.letters.offsetWidth;
+        if (w.letters) this.letters.classList.add('fresh');
+      }
     }
     this.hpFill.style.transform = `scaleX(${(p.hp / 100).toFixed(3)})`;
     this.hpFill.parentElement!.classList.toggle('low', p.hp < 35);
@@ -235,7 +243,7 @@ export class Hud {
 
     // подсказка действия: бобина или объект в фокусе
     const focus = p.focus >= 0 ? w.interactables[p.focus] : undefined;
-    show(this.prompt, p.canReel || !!focus || w.canReflect);
+    show(this.prompt, p.canReel || p.noReel || !!focus || w.canReflect);
     show(this.breath, !!night.reflect && (w.reflecting || p.breath < 0.999));
     if (night.reflect) {
       this.breathFill.style.transform = `scaleX(${p.breath.toFixed(3)})`;
@@ -245,6 +253,11 @@ export class Hud {
       this.set(this.promptLabel, t('prompt.reflect'));
       this.promptFill.style.transform = 'scaleX(0)';
       this.prompt.classList.remove('rule');
+    }
+    if (p.noReel && !focus) {
+      this.set(this.promptLabel, t('reel.none'));
+      this.promptFill.style.transform = 'scaleX(0)';
+      this.prompt.classList.add('rule');
     }
     if (p.canReel) {
       this.set(this.promptLabel, touch ? t('prompt.reel') : t('prompt.reelKb'));

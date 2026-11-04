@@ -130,7 +130,7 @@ export class Narrative {
         x = d.x;
         z = d.z;
       }
-      const kind = e.drop === 'weapon' ? 1 : e.drop === 'dynamite' ? 2 : e.drop === 'med' ? 3 : 0;
+      const kind = e.drop === 'weapon' ? 1 : e.drop === 'dynamite' ? 2 : e.drop === 'med' ? 3 : e.drop === 'reel' ? 5 : 0;
       w.director.dropPickup(kind, e.weapon ? weaponIndex(e.weapon) : 0, x, z);
     }
   }

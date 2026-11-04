@@ -31,7 +31,7 @@ export type Effect =
   | { flag: string }
   | { sanity: number }
   | { fragment: true }
-  | { drop: 'weapon' | 'ammo' | 'med' | 'dynamite'; weapon?: string; house: number; inside: boolean };
+  | { drop: 'weapon' | 'ammo' | 'med' | 'dynamite' | 'reel'; weapon?: string; house: number; inside: boolean };
 
 /** Все указанные поля должны выполняться одновременно. */
 export interface Condition {

@@ -25,7 +25,8 @@ export function input(o: Partial<InputFrame> = {}): InputFrame {
 
 /** Тихий мир: без волн, сценария и случайных пугалок — для изолированных проверок механик. */
 export function quietWorld(seed = 1, base: NightDef = NIGHT1): World {
-  const night: NightDef = { ...base, waves: [], beats: [] };
+  // без волн, сценария и защит Наказа — чистая механика
+  const night: NightDef = { ...base, waves: [], beats: [], wards: [] };
   const w = new World({ seed, night, scare: 0 });
   // Режиссёр не будет пугать: отодвигаем время следующего бита
   (w.director as unknown as { nextScareAt: number }).nextScareAt = 1e9;

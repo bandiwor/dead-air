@@ -50,12 +50,15 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
   const nearHut = Math.hypot(p.x - door.x, p.z - door.z) < 2.1;
   if (nearHut && !w.flags.has('hutVisited')) w.flags.add('hutVisited');
   // без лампы (вторая ночь) бобину не запустить
-  p.canReel = nearHut && w.air < 0.985 && !w.flags.has('reelLocked') && !w.cfg.night.noRadio;
+  const reelable = nearHut && w.air < 0.985 && !w.flags.has('reelLocked') && !w.cfg.night.noRadio;
+  p.canReel = reelable && p.reels > 0;
+  p.noReel = reelable && p.reels <= 0;
   p.holdingReel = p.canReel && inp.action;
   if (p.holdingReel) {
     p.reel += dt / 2.4;
     if (p.reel >= 1) {
       p.reel = 0;
+      p.reels--;
       w.air = 1;
       if (w.deadAir) {
         w.deadAir = false;
@@ -265,6 +268,9 @@ export function updatePlayer(w: World, inp: InputFrame, dt: number): void {
     } else if (pk.kind === 4) {
       p.battery = Math.min(1, p.battery + 0.5);
       amount = 50;
+    } else if (pk.kind === 5) {
+      p.reels += 1;
+      amount = 1;
     } else if (pk.kind === 3) {
       amount = Math.round(Math.min(45, 100 - p.hp));
       p.hp = Math.min(100, p.hp + 45);

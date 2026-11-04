@@ -170,7 +170,7 @@ describe('ночь вторая: вода, Невидевшие, процесс�
 
   it('перекличка: можно ответить за двенадцатый двор — нарушение пункта 5', () => {
     const w = makeWorld(1, { ...NIGHT2, waves: [] });
-    w.flags.add('wave:4:end');
+    w.flags.add('wave:2:end');
     step(w, input(), 1);
     const a = w.interactables.find((i) => i.id === 'answer')!;
     expect(a.enabled).toBe(true);

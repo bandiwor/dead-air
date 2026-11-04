@@ -2,6 +2,9 @@ import { SOUNDS, type SoundId, type SoundSource } from '../content/assets';
 import { Rng, hashString } from '../core/rng';
 import { clamp } from '../core/math';
 import { forestImpulse, gain } from './dsp';
+
+/** Папка живых записей (public/sfx). */
+const SFX_BASE = `${import.meta.env.BASE_URL}sfx/`;
 import { RECIPES } from './recipes';
 
 export interface PlayOpts {
@@ -92,10 +95,15 @@ export class AudioEngine {
   async load(onProgress: (done: number, total: number) => void): Promise<void> {
     const ctx = this.init();
     const entries = Object.entries(SOUNDS) as [SoundId, SoundSource][];
+    const live = await this.liveSamples();
     let done = 0;
     const tasks = entries.map(async ([id, src]) => {
       try {
-        const list = 'file' in src ? await this.loadFiles(ctx, src.file) : await this.bake(id, src);
+        // живая запись, если её положили в public/sfx (см. manifest.json); иначе — процедурный звук
+        const sample = live[id];
+        let list: AudioBuffer[] | null = null;
+        if (sample?.length) list = await this.loadFiles(ctx, sample.map((f) => SFX_BASE + f)).catch(() => null);
+        list ??= 'file' in src ? await this.loadFiles(ctx, src.file) : await this.bake(id, src);
         this.buffers.set(id, list);
       } catch (e) {
         // Один сломанный звук не должен блокировать игру: он просто будет молчать.
@@ -104,6 +112,25 @@ export class AudioEngine {
       onProgress(++done, entries.length);
     });
     await Promise.all(tasks);
+  }
+
+  /** Список живых записей: { "shriek": ["shriek-1.ogg", …], … }. Нет файла — нет и записей. */
+  private async liveSamples(): Promise<Partial<Record<SoundId, string[]>>> {
+    try {
+      const res = await fetch(SFX_BASE + 'manifest.json');
+      if (!res.ok) return {};
+      const data = (await res.json()) as Record<string, unknown>;
+      const out: Partial<Record<SoundId, string[]>> = {};
+      for (const [k, v] of Object.entries(data)) {
+        if (!(k in SOUNDS) || !Array.isArray(v)) continue;
+        // только имена файлов рядом с манифестом — без путей наружу
+        const files = v.filter((f): f is string => typeof f === 'string' && /^[\w.-]+\.(ogg|mp3|wav|m4a|webm)$/i.test(f));
+        if (files.length) out[k as SoundId] = files;
+      }
+      return out;
+    } catch {
+      return {};
+    }
   }
 
   private async loadFiles(ctx: AudioContext, file: string | string[]): Promise<AudioBuffer[]> {

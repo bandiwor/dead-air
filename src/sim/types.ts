@@ -167,6 +167,10 @@ export interface Player {
   inLight: boolean;
   lastNoiseT: number;
   canReel: boolean;
+  /** У радиоузла, эфир на исходе, а запасной бобины нет. */
+  noReel: boolean;
+  /** Запасные бобины: эфир — не таймер, а то, что надо найти. */
+  reels: number;
   /** Индекс интерактива в фокусе (или −1) и прогресс удержания. */
   focus: number;
   focusHold: number;

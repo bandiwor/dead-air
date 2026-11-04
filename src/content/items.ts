@@ -49,6 +49,10 @@ export const ITEMS: readonly ItemDef[] = [
     icon: [{ r: [4, 7, 16, 12] }, { l: [12, 9.5, 12, 16.5] }, { l: [8.5, 13, 15.5, 13] }, { p: 'M9 7 V5 H15 V7' }],
   },
   {
+    id: 'reel', name: 'pickup.reel', desc: 'item.reel.desc', tip: 'item.reel.tip', count: 'item.count.reel', model: 'reel',
+    icon: [{ c: [12, 12, 8] }, { c: [12, 12, 2] }, { c: [12, 6.5, 1.6] }, { c: [16.8, 14.8, 1.6] }, { c: [7.2, 14.8, 1.6] }],
+  },
+  {
     id: 'battery', name: 'pickup.battery', desc: 'item.battery.desc', tip: 'item.battery.tip', count: 'item.count.charge', model: 'battery',
     icon: [{ r: [8, 6, 8, 15] }, { r: [10.5, 4, 3, 2] }, { p: 'M13 9 L10.5 13.5 H13.5 L11 18' }],
   },
@@ -56,7 +60,7 @@ export const ITEMS: readonly ItemDef[] = [
 
 /** Вид находки по событию подбора (kind из Pickup, a — индекс оружия). */
 export function itemFor(kind: number, a: number): ItemDef | undefined {
-  const id = kind === 1 ? `weapon:${WEAPONS[a]?.id}` : kind === 2 ? 'dynamite' : kind === 3 ? 'med' : kind === 4 ? 'battery' : 'ammo';
+  const id = kind === 1 ? `weapon:${WEAPONS[a]?.id}` : kind === 2 ? 'dynamite' : kind === 3 ? 'med' : kind === 4 ? 'battery' : kind === 5 ? 'reel' : 'ammo';
   return ITEMS.find((i) => i.id === id);
 }
 

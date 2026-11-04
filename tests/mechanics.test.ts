@@ -3,7 +3,7 @@ import { input, quietWorld, step, walkTo } from './helpers/sim';
 import { WEAPONS, weaponIndex } from '../src/content/weapons';
 import { Kind } from '../src/content/enemies';
 import { spawnEnemy } from '../src/sim/enemies';
-import { explode } from '../src/sim/combat';
+import { explode, killEnemy } from '../src/sim/combat';
 import { WORLD } from '../src/proc/terrain';
 import { NIGHT2 } from '../src/content/night2';
 import type { SimEvent } from '../src/sim/types';
@@ -310,21 +310,36 @@ describe('сценарный движок', () => {
     expect(lines).toEqual(w.cfg.night.fragments);
   });
 
-  it('в мёртвом эфире убитый шептун договаривает фразу, при радио — молчит', () => {
+  it('убитый в темноте шептун договаривает фразу, убитый в луче — исчезает молча', () => {
     const w = quietWorld();
     place(w, 3, 3);
+    // в луче фонаря — ни слова, даже в мёртвом эфире
+    w.air = 0;
+    step(w, input(), 4);
     const e1 = spawnEnemy(w, Kind.Whisperer, 7, 3)!;
     e1.speed = 0;
     e1.hp = 1;
+    step(w, input({ aiming: true, ax: 1 }), 0.1);
+    expect(e1.litTorch).toBe(true);
     step(w, input({ aiming: true, ax: 1, fire: true }), 0.1);
+    expect(e1.active).toBe(false);
     expect(w.fragments).toBe(0);
-    w.air = 0;
-    step(w, input(), 4);
-    const e2 = spawnEnemy(w, Kind.Whisperer, 7, 3)!;
-    e2.speed = 0;
-    e2.hp = 1;
-    step(w, input({ aiming: true, ax: 1, fire: true }), 0.4);
+    // в темноте (вне луча, вдали от столба) — договаривает
+    const e2 = spawnEnemy(w, Kind.Whisperer, 3, 3)!;
+    e2.litTorch = false;
+    e2.litAny = false;
+    w.time += 5;
+    killEnemy(w, e2, false);
     expect(w.fragments).toBe(1);
+  });
+
+  it('при радио у столба убитый в темноте молчит: эфир заглушает', () => {
+    const w = quietWorld();
+    const e = spawnEnemy(w, Kind.Whisperer, 2, 2)!;
+    e.litTorch = false;
+    e.litAny = true; // свет столба
+    killEnemy(w, e, false);
+    expect(w.fragments).toBe(0);
   });
 
   it('вторая ночь стартует с обрезом, всё тёмное', () => {

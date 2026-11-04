@@ -24,35 +24,26 @@ export const NIGHT1: NightDef = {
   duration: 540,
   startHour: 22,
   endHour: 6,
-  reelSeconds: 85,
+  reelSeconds: 135,
+  reels: 1,
+  wards: [{ rule: 1, kind: 'pole' }, { rule: 2, kind: 'houses' }, { rule: 3, kind: 'trail' }],
   rules: ['rule.1', 'rule.2', 'rule.3', 'rule.4', 'rule.5'],
+  // Три волны вместо шести: между ними — длинная тишина, в которой страшнее, чем в бою.
   waves: [
-    { at: 22, pulse: 2.6, spawns: [{ kind: 'whisperer', count: 6, from: 'crevice' }], startLine: 'n1.w1', endLine: 'n1.w1e' },
     {
-      at: 105, pulse: 1.8,
-      spawns: [{ kind: 'whisperer', count: 8, from: 'crevice' }, { kind: 'whisperer', count: 4, from: 'forest' }],
-      startLine: 'n1.w2', endLine: 'n1.w2e', reward: { weapon: 'rifle', house: 3 },
+      at: 30, pulse: 2.6, spawns: [{ kind: 'whisperer', count: 6, from: 'crevice' }],
+      startLine: 'n1.w1', endLine: 'n1.w2e', reward: { weapon: 'rifle', house: 3 },
     },
     {
-      at: 190, pulse: 2,
-      spawns: [{ kind: 'mute', count: 1, from: 'pond' }, { kind: 'whisperer', count: 9, from: 'forest' }],
+      at: 215, pulse: 1.9,
+      spawns: [{ kind: 'mute', count: 1, from: 'pond' }, { kind: 'whisperer', count: 8, from: 'crevice' }, { kind: 'whisperer', count: 4, from: 'forest' }],
       startLine: 'n1.w3', endLine: 'n1.w3e', reward: { weapon: 'smg', house: 0 },
     },
     {
-      at: 275, pulse: 1.6,
-      spawns: [{ kind: 'echo', count: 1, from: 'behind' }, { kind: 'whisperer', count: 11, from: 'crevice' }],
-      startLine: 'n1.w4',
-    },
-    {
-      at: 365, pulse: 1.4,
-      spawns: [{ kind: 'mute', count: 1, from: 'crevice' }, { kind: 'mute', count: 1, from: 'pond' }, { kind: 'whisperer', count: 14, from: 'forest' }],
-      startLine: 'n1.w5',
-    },
-    {
-      at: 455, pulse: 1.1,
+      at: 410, pulse: 1.3,
       spawns: [
-        { kind: 'echo', count: 1, from: 'behind' }, { kind: 'mute', count: 2, from: 'pond' },
-        { kind: 'whisperer', count: 10, from: 'crevice' }, { kind: 'whisperer', count: 10, from: 'forest' },
+        { kind: 'echo', count: 1, from: 'behind' }, { kind: 'mute', count: 1, from: 'pond' }, { kind: 'mute', count: 1, from: 'crevice' },
+        { kind: 'whisperer', count: 8, from: 'crevice' }, { kind: 'whisperer', count: 8, from: 'forest' },
       ],
       startLine: 'n1.w6',
     },
@@ -70,7 +61,7 @@ export const NIGHT1: NightDef = {
       when: { flag: 'wave:1:end' },
       do: [
         { wait: 3 }, { openDoor: 2 }, { light: 2, on: true },
-        { drop: 'weapon', weapon: 'shotgun', house: 2, inside: true },
+        { drop: 'weapon', weapon: 'shotgun', house: 2, inside: true }, { drop: 'reel', house: 2, inside: false },
         { line: 'n1.house2' }, { objective: 'obj.house2', marker: { house: 2 } },
       ],
     },
@@ -86,7 +77,12 @@ export const NIGHT1: NightDef = {
         { wait: 0.9 }, { openDoor: 2 }, { spawn: 'whisperer', count: 4, at: 'doorOut', house: 2 },
       ],
     },
-    { id: 'knockHint', when: { flag: 'wave:2:end' }, do: [{ wait: 4 }, { line: 'n1.knockHint' }] },
+    { id: 'knockHint', when: { t: 150 }, do: [{ line: 'n1.knockHint' }] },
+    // тишина между волнами: никто не нападает, но деревня не пустая
+    { id: 'lull1', when: { t: 120 }, do: [{ scare: 'duck' }, { wait: 1.5 }, { line: 'n1.w5' }] },
+    { id: 'silentKill', when: { flag: 'wave:1:end' }, do: [{ wait: 12 }, { line: 'hint.silentKill' }] },
+    { id: 'lull2', when: { t: 300 }, do: [{ scare: 'steps' }, { wait: 2 }, { line: 'n1.w4' }, { wait: 3 }, { spawn: 'echo', count: 1, at: 'behind' }] },
+    { id: 'lull3', when: { t: 360 }, do: [{ line: 'n1.w2' }, { spawn: 'whisperer', count: 3, at: 'crevice' }] },
     { id: 'broke2', when: { flag: 'broke:2' }, do: [{ line: 'n1.broke2' }] },
     { id: 'broke3', when: { flag: 'broke:3' }, do: [{ line: 'n1.broke3' }] },
 
@@ -98,7 +94,7 @@ export const NIGHT1: NightDef = {
     // середина ночи: громкоговоритель читает фамилии и обрывается на двенадцатой
     {
       id: 'names',
-      when: { flag: 'wave:3:end' },
+      when: { flag: 'wave:2:end' },
       do: [
         { scare: 'names' }, { line: 'n1.names1', style: 1 }, { wait: 4 },
         { line: 'n1.names2', style: 1 }, { wait: 4 }, { line: 'n1.names3', style: 1 }, { wait: 2.5 },
@@ -126,7 +122,7 @@ export const NIGHT1: NightDef = {
   ],
   houses: [
     { house: 0, notes: [{ id: 'dinner', key: 'note.dinner', x: 0.9, z: -1.3 }, { id: 'receiver', key: 'note.receiver', x: -2.45, z: 1.0 }],
-      knock: [{ scare: 'knockBack', house: 0 }, { wait: 2.2 }, { openDoor: 0 }, { line: 'n1.open0' }] },
+      knock: [{ scare: 'knockBack', house: 0 }, { wait: 2.2 }, { openDoor: 0 }, { drop: 'reel', house: 0, inside: true }, { line: 'n1.open0' }] },
     { house: 1, notes: [{ id: 'mirror', key: 'note.mirror', x: 0, z: -1.7, after: [{ scare: 'duck' }, { wait: 0.4 }, { appear: 'behind' }, { line: 'n1.behind' }] }],
       knock: [{ scare: 'knockBack', house: 1 }, { wait: 2.6 }, { openDoor: 1 }, { line: 'n1.open1' }] },
     { house: 2, notes: [{ id: 'drawings', key: 'note.drawings', x: -1.5, z: -2.05 }], knock: [] },

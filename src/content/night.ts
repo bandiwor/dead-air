@@ -14,6 +14,8 @@ export interface WaveDef {
 }
 
 /** Ночь целиком — данные: волны, сценарий, дома, особые действия, кат-сцены, Наказ. */
+export type WardKind = 'houses' | 'pole' | 'trail';
+
 export interface NightDef {
   id: string;
   index: number;
@@ -69,6 +71,14 @@ export interface NightDef {
    * срабатывает overstay.
    */
   reflect?: { puddles: { x: number; z: number; r: number }[]; overstay: Effect[] };
+  /**
+   * Наказ охраняет тех, кто его держит: пока пункт `rule` не нарушен, действует защита.
+   * houses — твари не входят в дома; pole — Молчуны не заходят в свет столба (пока играет радио);
+   * trail — Отголосок бьёт вполсилы.
+   */
+  wards?: { rule: number; kind: WardKind }[];
+  /** Запасных бобин в начале ночи (по умолчанию 1). Новые находят в домах и после волн. */
+  reels?: number;
   /** Индекс пункта Наказа «не отворачиваться от закрывших лицо» (Невидевшие). */
   turnRule?: number;
   /**

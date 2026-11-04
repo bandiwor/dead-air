@@ -198,6 +198,26 @@ describe('ночь третья: «Щель»', () => {
     expect(w.letters).toBe('ВА');
   });
 
+  it('имя можно вспомнить и без нарушений — дольше: слушать у двери, дать прошлому догнать, смотреть в воду', () => {
+    const w = makeWorld(4, { ...NIGHT3B, waves: [], beats: NIGHT3B.beats.filter((b) => b.id !== 'nakaz' && b.id !== 'ravine') });
+    // «А»: долго сидеть у двери — не стучать
+    use(w, 'listenHut', 10);
+    expect(w.flags.has('broke:2')).toBe(false);
+    step(w, input(), 3);
+    expect(w.interactables.find((i) => i.id === 'knockHut')!.enabled).toBe(false);
+    use(w, 'letter2', 0.2);
+    expect(w.letters).toBe('А');
+    // «Н»: Отголосок вошёл в вас, пока вы стояли
+    w.flags.add('echoMerged');
+    step(w, input(), 1);
+    expect(w.flags.has('broke:3')).toBe(false);
+    expect(w.interactables.find((i) => i.id === 'letter3')!.enabled).toBe(true);
+    // «В»: после лодки в отражении — второй, долгий взгляд
+    w.flags.add('reflBoat');
+    step(w, input(), 3);
+    expect(w.interactables.find((i) => i.id === 'reflRuin')!.enabled).toBe(true);
+  });
+
   it('три концовки: каждая ставит свой флаг и кончает ночь', () => {
     for (const [id, flag] of [['open', 'end:flood'], ['throw', 'end:loop'], ['name', 'end:name']] as const) {
       // Хор к этому моменту уже замолчал — сцену его появления не повторяем
