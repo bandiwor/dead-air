@@ -28,6 +28,7 @@ import { DevTools } from './devtools';
 import { AchievementTracker } from './achievements';
 import { AchToast } from '../ui/achToast';
 import { PickupCard } from '../ui/pickupCard';
+import { ScareOverlay } from '../ui/scareOverlay';
 import { itemFor, itemShowcaseKind, type ItemDef } from '../content/items';
 import { Installer } from '../platform/install';
 import { InstallCard } from '../ui/installCard';
@@ -86,6 +87,7 @@ export class Game {
   readonly ach: AchievementTracker;
   private readonly achToast: AchToast;
   private readonly pickupCard: PickupCard;
+  private readonly scareOverlay: ScareOverlay;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -156,6 +158,7 @@ export class Game {
     this.world = this.makeWorld();
     this.achToast = new AchToast(root);
     this.pickupCard = new PickupCard(touch);
+    this.scareOverlay = new ScareOverlay(root);
     this.ach = new AchievementTracker(this.progress, () => saveProgress(this.progress), (a) => {
       this.achToast.push(a);
       this.audio.play('pickup', { bus: 'ui', vol: 0.7, rate: a.rarity === 'legendary' ? 0.7 : 1, reverb: 0.3 });
@@ -650,6 +653,7 @@ export class Game {
       },
       onNote: (key: string) => this.openNote(key),
       onPickup: (kind: number, a: number, amount: number) => this.onPickup(kind, a, amount),
+      onJumpscare: () => this.scareOverlay.play(this.settings.reduceFlashes),
       onDawn: () => {
         this.mode = 'dawn';
         this.input.enabled = false;

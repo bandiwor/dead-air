@@ -517,6 +517,47 @@ export const RECIPES: Record<ProcSoundId, Recipe> = {
       perc(sub.gain, 0, 1, 0.003, 0.55);
     },
   },
+  /**
+   * Удар скримера. Рефлекс испуга срабатывает на громкий широкополосный звук с почти мгновенным
+   * нарастанием (единицы миллисекунд): чем медленнее фронт, тем слабее вздрагивание. Поэтому —
+   * белый шум с фронтом 1 мс, «удар в грудь» на 50 Гц и металлический визг сверху. Никаких аккордов.
+   */
+  shock: {
+    dur: () => 1.3,
+    build: (c, o, r) => {
+      // широкополосный удар
+      const n = gain(c, 0.0001);
+      chain(noise(c, r, 1.2), filter(c, 'highpass', 180), saturator(c, 8), n, o);
+      n.gain.setValueAtTime(0.0001, 0);
+      n.gain.linearRampToValueAtTime(1, 0.001);
+      n.gain.exponentialRampToValueAtTime(0.25, 0.09);
+      n.gain.exponentialRampToValueAtTime(0.0001, 0.7);
+      // удар в грудь
+      const sub = gain(c, 0.0001);
+      const s = osc(c, 'sine', 58, 0, 0.8);
+      s.frequency.exponentialRampToValueAtTime(26, 0.6);
+      chain(s, saturator(c, 3), sub, o);
+      sub.gain.setValueAtTime(0.0001, 0);
+      sub.gain.linearRampToValueAtTime(1.1, 0.002);
+      sub.gain.exponentialRampToValueAtTime(0.0001, 0.75);
+      // металлический визг: несогласные частоты, дрожат и сползают вниз
+      const scr = gain(c, 0.0001);
+      chain(scr, filter(c, 'highpass', 900), saturator(c, 4), gain(c, 0.5), o);
+      for (const f of [1870, 2630, 3390, 4410]) {
+        const so = osc(c, 'square', f * r.range(0.97, 1.03), 0, 1.2);
+        so.frequency.exponentialRampToValueAtTime(f * 0.62, 1.1);
+        const vib = osc(c, 'sine', r.range(17, 26), 0, 1.2);
+        const vg = gain(c, f * 0.04);
+        chain(vib, vg);
+        vg.connect(so.frequency);
+        chain(so, gain(c, 0.12), scr);
+      }
+      scr.gain.setValueAtTime(0.0001, 0);
+      scr.gain.linearRampToValueAtTime(0.9, 0.003);
+      scr.gain.exponentialRampToValueAtTime(0.3, 0.35);
+      scr.gain.exponentialRampToValueAtTime(0.0001, 1.2);
+    },
+  },
   swell: {
     dur: () => 1.7,
     build: (c, o, r) => {

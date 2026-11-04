@@ -620,3 +620,16 @@ button {
 /* всплывашки одного вида: одна высота, один отступ, одна рамка */
 .ach-toast, .pickup-card { min-height: 52px; }
 .ach-toast .ach-icon, .pickup-icon { width: 36px; height: 36px; }
+
+/* скример: поверх всего, в обход пиксельного пост-эффекта */
+.scare { position: fixed; inset: 0; z-index: 50; background: #000; pointer-events: none; overflow: hidden; }
+.scare-face {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 100vh;
+  aspect-ratio: 3 / 4;
+  transform: translate(-50%, -50%);
+  will-change: transform, filter;
+}
+.scare-face canvas { position: absolute; inset: 0; width: 100%; height: 100%; }

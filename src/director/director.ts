@@ -215,10 +215,28 @@ export class Director {
 
   private begin(s: ScareDef): void {
     const w = this.w;
-    // Перед значимыми битами — тишина: звук приглушается, страх-потенциация испуга.
-    if (s.id === 'jumpscare' || s.id === 'pier' || s.id === 'edge') {
+    // Скример нельзя предсказать: если перед каждым — одна и та же тишина и ровно 2 секунды,
+    // после первого раза игрок ждёт удара и не вздрагивает. Поэтому два рисунка, наугад:
+    //  • без предупреждения — посреди обычного спокойного момента;
+    //  • «нарастание → ложная тревога → облегчение → удар»: тишина, потом безобидный звук
+    //    (ветка, шёпот, шаги — «а, это просто…»), и удар — когда игрок уже выдохнул.
+    if (s.id === 'jumpscare') {
+      const rng = w.rng;
+      if (rng.chance(0.45)) {
+        this.execute('jumpscare');
+        return;
+      }
       w.emit('scare', 0, 0, 0, 0, 0, 0, 'duck');
-      this.pending.push({ at: w.time + (s.id === 'jumpscare' ? 2.2 : 1.2), kind: s.id });
+      const fakeAt = w.time + rng.range(1.3, 2.6);
+      const fakes: ScareKind[] = ['branch', 'whisper', 'steps'];
+      this.pending.push({ at: fakeAt, kind: fakes[rng.int(0, fakes.length - 1)]! });
+      this.pending.push({ at: fakeAt + rng.range(1.1, 3.4), kind: 'jumpscare' });
+      return;
+    }
+    // Перед явлениями — тишина: звук приглушается, страх-потенциация.
+    if (s.id === 'pier' || s.id === 'edge') {
+      w.emit('scare', 0, 0, 0, 0, 0, 0, 'duck');
+      this.pending.push({ at: w.time + 1.2, kind: s.id });
       return;
     }
     this.execute(s.id);
